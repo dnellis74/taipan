@@ -1,0 +1,163 @@
+<!doctype html>
+<html>
+
+<head>
+  <link rel="stylesheet" href="node_modules/xterm/css/xterm.css" />
+  <script src="node_modules/xterm/lib/xterm.js"></script>
+</head>
+
+<body>
+  <div id="terminal"></div>
+  <script lang="js">
+    // create terminal with \n = \r\n
+    var term = new Terminal({ convertEol: true });
+    term.open(document.getElementById('terminal'));
+    term.write('Hello from \x1B[1;3;31mxterm.js\x1B[0m $ ');
+
+    A_REVERSE = 'A_REVERSE';
+    A_NORMAL = 'A_NORMAL';
+
+    var firm = [];
+
+    var curr_handler = splash_intro();
+
+    function splash_intro() {
+      // clears input buffer
+      flushinp();
+      clear();
+      printw("\n");
+      printw("         _____  _    ___ ____   _    _   _               ===============\n");
+      printw("        |_   _|/ \\  |_ _|  _ \\ / \\  | \\ | |              Created by:\n");
+      printw("          | | / _ \\  | || |_) / _ \\ |  \\| |                 Art Canfil\n");
+      printw("          | |/ ___ \\ | ||  __/ ___ \\| |\\  |\n");
+      printw("          |_/_/   \\_\\___|_| /_/   \\_\\_| \\_|              ===============\n");
+      printw("                                                         Programmed by:\n");
+      printw("   A game based on the China trade of the 1800's            Jay Link\n");
+      printw("\n");
+      printw("                      ~~|     ,                          jlink@ilbbs.com\n");
+      printw("                       ,|`-._/|\n");
+      printw("                     .' |   /||\\                         ===============\n");
+      printw("                   .'   | ./ ||`\\                         Copyright (c)\n");
+      printw("                  / `-. |/._ ||  \\                         1978 - 2002\n");
+      printw("                 /     `||  `|;-._\\                         Art Canfil\n");
+      printw("                 |      ||   ||   \\\n");
+      printw("~^~_-~^~=~^~~^= /       ||   ||__  \\~^=~^~-~^~_~^~=      ===============\n");
+      printw(" ~=~^~ _~^~ =~ `--------|`---||  `\"-`___~~^~ =_~^=        Press ");
+      attrset(A_REVERSE);
+      printw("ANY");
+      attrset(A_NORMAL);
+      printw(" key\n");
+      printw("~ ~^~=~^_~^~ =~ \\~~~~~~~'~~~~'~~~~/~~`` ~=~^~ ~^=           to start.\n");
+      printw(" ~^=~^~_~-=~^~ ^ `--------------'~^~=~^~_~^=~^~=~\n");
+      curs_set(0);
+      refresh();
+      return getch_splash();
+    }
+
+    function name_firm(curr_handler) {
+      curr_handler.dispose();
+      curs_set(1);
+      clear();
+      move(7, 0);
+      printw(" _______________________________________\n");
+      printw("|     Taipan,                           |\n");
+      printw("|                                       |\n");
+      printw("| What will you name your               |\n");
+      printw("|                                       |\n");
+      printw("|     Firm:                             |\n");
+      printw("|           ----------------------      |\n");
+      printw("|_______________________________________|\n");
+
+      move(12, 12);
+      refresh();
+      character = 0;
+      getch_firm();
+    }
+
+    // clear input buffer
+    function flushinp() {
+
+    }
+
+    function printw(output) {
+      term.write(output);
+    }
+
+    function clear() {
+      term.write('\x1bc');
+    }
+
+    function attrset(attr) {
+      if (attr === A_REVERSE) {
+        //term.setOption('{}');
+      }
+    }
+
+    // cursor on off?
+    function curs_set(x, y) {
+
+    }
+
+    function move(x, y) {
+      term.write('\u001B[' + x + ';' + y + 'H');
+    }
+
+    function refresh() {
+      // render the buffer
+    }
+
+    // term.on('key', (key, domEvent) => {
+    //   const ev = domEvent;
+    //   const printable = !ev.altKey && !ev.ctrlKey && !ev.metaKey;
+
+    //   // if (ev.keyCode === 13) {
+    //   //   term.writeln();
+    //   // } else if (ev.keyCode === 8) {
+    //   //   // Do not delete the prompt
+    //   //   if (term._core.buffer.x > 2) {
+    //   //     term.write('\b \b');
+    //   //   }
+    //   // } else if (printable) {
+    //   //   term.write(key);
+    //   // }
+    //   currChar = key;
+    // });
+
+    function getch_splash() {
+      return term.onKey(e => {
+        name_firm(curr_handler);
+      });
+    }
+
+    function getch_firm() {
+      handler = term.onKey(e => {
+        input = e.key.charCodeAt(0);
+        if (((input == 8) || (input == 127)) && (character == 0)) {
+          refresh();
+        } else if ((input == 8) || (input == 127)) {
+          printw('\u001B[G');
+          printw(" ");
+          printw('\u001B[G');
+          firm[character] = '\0';
+          character--;
+          refresh();
+        } else if (input == '\33') {
+          flushinp();
+          refresh();
+        } else {
+          printw(e.key);
+          firm[character] = e.key;
+          character++;
+          refresh();
+        }
+        // firm[character] = '\0';
+        // return firm;
+      });
+    }
+
+
+
+  </script>
+</body>
+
+</html>
