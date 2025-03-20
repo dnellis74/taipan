@@ -13,17 +13,16 @@ async function main() {
     const banking = new SimpleBankingService();
     const events = new SimpleEventService();
     const travel = new SimpleTravelService();
-    const trading = new SimpleTradingService();
+    const trading = new SimpleTradingService(ui);
 
     // Create and initialize game
     const game = new Game(ui, battle, banking, events, travel, trading);
-    await game.init({
-        debugMode: true,
-        quickStart: false
-    });
+    await game.init();
 
-    // Run the game
-    await game.run();
+    // Main game loop
+    while (true) {
+        await game.update();
+    }
 }
 
 // Start the game

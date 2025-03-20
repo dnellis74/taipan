@@ -28,7 +28,7 @@ export class Game {
         private ui: UIService,
         private battle: BattleService,
         private banking: BankingService,
-        private events: EventService,
+        private eventService: EventService,
         private travel: TravelService,
         private trading: TradingService
     ) {
@@ -42,197 +42,212 @@ export class Game {
             bank: 0,
             debt: 0,
             booty: 0,
-            hold: new Array(Object.keys(CargoType).length / 2).fill(0),
-            warehouse: new Array(Object.keys(CargoType).length / 2).fill(0),
-            capacity: Game.STARTING_CAPACITY,
+            hold: 0,
+            cargoSpace: Game.STARTING_CAPACITY,  // Initialize to match starting capacity
+            warehouse: new Array(4).fill(0),  // One slot for each cargo type
+            capacity: Game.STARTING_CAPACITY,  // Default warehouse capacity
             guns: 0,
             damage: 0,
+            location: Location.HONG_KONG,
+            nextDestination: null,  // Initialize with no destination
             month: 1,
-            year: 1860,
+            year: 1860,  // Starting year for the China trade era
             liYuenStatus: false,
-            currentPort: Location.HONG_KONG,
             wuWarning: false,
             wuBailout: false,
             enemyHealth: 20,
-            enemyDamage: 0.5
+            enemyDamage: 0.5,
+            prices: {
+                general: 0,
+                arms: 0,
+                silk: 0,
+                opium: 0
+            },
+            inventory: {
+                general: 0,
+                arms: 0,
+                silk: 0,
+                opium: 0
+            }
         };
     }
 
-    public async init(options: GameOptions): Promise<boolean> {
-        if (this.initialized) {
-            return false;
-        }
+    async init(): Promise<void> {
+        if (this.initialized) return;
 
-        // Initialize UI
         await this.ui.init();
-
+        
         // Show splash screen
         await this.ui.displaySplashScreen();
 
-        // Initialize new game state
-        this.state = this.createInitialState();
-
-        // Try to load saved game if specified
-        if (options.saveFile && await this.loadGame(options.saveFile)) {
-            this.initialized = true;
-            return true;
-        }
-
-        // Get firm name first
+        // Get firm name
         this.state.firmName = await this.ui.getFirmName();
 
-        // Set up initial cash based on game mode
-        if (options.debugMode) {
-            this.state.cash = 100000;
-            this.state.bank = 1000000;
-        } else if (options.quickStart) {
-            this.state.cash = Game.STARTING_CASH * 10;
-        } else {
+        // Initialize game state
+        const startChoice = await this.ui.getCashOrGunsChoice();
+        if (startChoice === 'cash') {
             this.state.cash = Game.STARTING_CASH;
+            this.state.debt = Game.STARTING_CASH * 2;
+            await this.ui.displayCompradorReport(
+                `Starting with ${Game.STARTING_CASH} cash and ${this.state.debt} debt.`
+            );
+        } else {
+            this.state.guns = 5;
+            await this.ui.displayCompradorReport(
+                'Starting with 5 guns and no debt.'
+            );
         }
 
-        this.initialized = true;
-        return true;
-    }
-
-    public async run(): Promise<void> {
-        if (!this.initialized) {
-            throw new Error("Game not initialized");
-        }
-
-        while (!this.isGameOver()) {
-            // Display current port status
-            await this.ui.displayPortStats(this.state);
-
-            // Handle monthly events if in Hong Kong
-            if (this.state.currentPort === Location.HONG_KONG) {
-                await this.events.processMonthlyEvents(this.state);
-            }
-
-            // Check for random events
-            const event = this.events.checkRandomEvents(this.state);
-            if (event.type !== EventType.NONE) {
-                let result: EventResult;
-
-                if (event.requiresAction) {
-                    // Display event and get player response
-                    result = await this.ui.displayEventPrompt(event);
-                } else {
-                    // Automatically handle event
-                    result = await this.events.handleAutomaticEvent(this.state, event);
-                }
-
-                // Apply event results
-                this.events.applyEventResult(this.state, event, result);
-
-                // Display event outcome
-                await this.ui.displayEventResult(event, result);
-            }
-
-            // Handle player actions at port
-            const action = await this.handlePortActions();
-
-            if (action === GameAction.QUIT) {
-                break;
-            }
-
-            if (action === GameAction.RETIRE && this.canRetire()) {
-                await this.ui.displayRetirementMessage(this.calculateScore());
-                break;
-            }
-
-            // End of month processing
-            if (this.state.currentPort === Location.HONG_KONG) {
-                this.handleMonthEnd();
-            }
-        }
-
-        // Game over
-        if (this.isGameOver()) {
-            await this.ui.displayGameOver(this.calculateScore());
-        }
-
-        // Cleanup
-        this.ui.cleanup();
-    }
-
-    private async handlePortActions(): Promise<GameAction> {
-        while (true) {
-            const choice = await this.ui.getPortMenuChoice();
-
-            switch (choice) {
-                case GameAction.BUY:
-                    await this.handleBuying();
-                    break;
-
-                case GameAction.SELL:
-                    await this.handleSelling();
-                    break;
-
-                case GameAction.BANK:
-                    // Banking would be implemented here
-                    break;
-
-                case GameAction.WAREHOUSE:
-                    if (this.state.currentPort === Location.HONG_KONG) {
-                        // Warehouse handling would be implemented here
-                    }
-                    break;
-
-                case GameAction.TRAVEL:
-                    const dest = await this.ui.getTravelDestination();
-                    if (this.travel.canTravelTo(this.state, dest)) {
-                        if (await this.handleSeaTravel(dest)) {
-                            return choice;
-                        }
-                    }
-                    break;
-
-                case GameAction.QUIT:
-                    if (await this.ui.confirmQuit()) {
-                        return choice;
-                    }
-                    break;
-
-                case GameAction.RETIRE:
-                    if (this.canRetire() && await this.ui.confirmRetire()) {
-                        return choice;
-                    }
-                    break;
-            }
-        }
-    }
-
-    private async handleSeaTravel(destination: Location): Promise<boolean> {
-        if (destination === this.state.currentPort) {
-            return false;
-        }
-
-        // Check for pirates based on distance and cargo value
-        const distance = this.travel.calculateDistance(this.state.currentPort, destination);
-        const pirateChance = 10 + (distance * 5) + (this.getTotalCargoValue() / 1000);
+        this.state.capacity = Game.STARTING_CAPACITY;
         
-        if (Math.random() * 100 < pirateChance) {
-            const numShips = Math.floor(Math.random() * 5) + 1;
-            const result = await this.battle.doSeaBattle(this.state, numShips);
+        // Set initial prices for starting port (Hong Kong)
+        await this.trading.updatePrices(this.state, true);
+        
+        this.initialized = true;
+    }
 
-            if (!result) {
-                return false;
+    async update(): Promise<void> {
+        // Only check for random events if we're completing a sea journey
+        if (this.state.location === Location.AT_SEA && this.state.nextDestination !== null) {
+            // Complete travel by moving to destination
+            this.state.location = this.state.nextDestination;
+            this.state.nextDestination = null;
+            
+            // Set initial prices for the new port
+            await this.trading.updatePrices(this.state, true);  // true = set new port prices
+            
+            // Now check for random events since we've arrived at port
+            const event = await this.eventService.checkRandomEvents(this.state);
+            if (event.type !== EventType.NONE) {
+                await this.handleEvent(event);
             }
+            
+            await this.ui.displayCompradorReport(
+                `Arriving at ${this.state.location}...`
+            );
+        } else if (this.state.location !== Location.AT_SEA) {
+            // While in port, 1/9 chance of price change (like original)
+            await this.trading.updatePrices(this.state, false);  // false = check for random changes
         }
 
-        // Made it to destination
-        this.travel.travel(this.state, destination);
-        return true;
+        // Display current port stats
+        await this.ui.displayPortStats(this.state);
+
+        // Get and handle player action
+        const action = await this.ui.getPortMenuChoice();
+        await this.handleAction(action);
+    }
+
+    private async handleEvent(event: GameEvent): Promise<void> {
+        try {
+            switch (event.type) {
+                case EventType.PIRATES:
+                    const numShips = event.data.numShips || 1;
+                    await this.ui.displayCompradorReport(
+                        `${numShips} hostile ships approaching, Taipan!`,
+                        3000
+                    );
+                    break;
+                case EventType.LI_YUEN:
+                    if (this.state.location !== Location.HONG_KONG) {
+                        await this.ui.displayCompradorReport(
+                            'Li Yuen has sent a Lieutenant,\nTaipan. He says his admiral wishes\nto see you in Hong Kong, posthaste!',
+                            3000
+                        );
+                    }
+                    break;
+                case EventType.LI_YUEN_EXTORTION:
+                    const amount = event.data.extortionAmount || 0;
+                    await this.ui.displayCompradorReport(
+                        `Li Yuen asks ${amount} in donation\nto the temple of Tin Hau, the Sea\nGoddess.`,
+                        3000
+                    );
+                    break;
+                case EventType.OPIUM_SEIZED:
+                    const fine = event.data.moneyLoss || 0;
+                    await this.ui.displayCompradorReport(
+                        `Bad Joss!!\nThe local authorities have seized your\nOpium cargo${fine > 0 ? ` and have also fined you\n$${fine}` : ''}, Taipan!`,
+                        5000
+                    );
+                    break;
+                case EventType.WAREHOUSE_RAID:
+                    await this.ui.displayCompradorReport(
+                        'Messenger reports large theft\nfrom warehouse, Taipan.',
+                        5000
+                    );
+                    break;
+                case EventType.MUGGED:
+                    const stolenAmount = event.data.moneyLoss || 0;
+                    await this.ui.displayCompradorReport(
+                        `Bad Joss!!\nYou've been beaten up and\nrobbed of ${stolenAmount} in cash, Taipan!!`,
+                        5000
+                    );
+                    break;
+                case EventType.SHIP_OFFER:
+                    await this.ui.displayCompradorReport(event.description);
+                    break;
+                case EventType.GUN_OFFER:
+                    await this.ui.displayCompradorReport(event.description);
+                    break;
+            }
+
+            const result = await this.ui.handleEvent(this.state, event);
+            await this.eventService.applyEventResult(this.state, event, result);
+            await this.ui.displayEventOutcome(event, result);
+        } catch (e) {
+            // If a new event is thrown (like gun offer after ship purchase), handle it
+            if (e && typeof e === 'object' && 'type' in e && e.type === EventType.GUN_OFFER) {
+                await this.handleEvent(e as GameEvent);
+            } else {
+                throw e;  // Re-throw if not an event
+            }
+        }
+    }
+
+    private async handleAction(action: GameAction): Promise<void> {
+        switch (action) {
+            case GameAction.BUY:
+                await this.handleBuying();
+                break;
+            case GameAction.SELL:
+                await this.handleSelling();
+                break;
+            case GameAction.BANK:
+                await this.handleBanking();
+                break;
+            case GameAction.WAREHOUSE:
+                await this.handleWarehouse();
+                break;
+            case GameAction.TRAVEL:
+                await this.handleTravel();
+                break;
+            case GameAction.QUIT:
+                if (await this.ui.confirmQuit()) {
+                    this.cleanup();
+                    process.exit(0);
+                }
+                break;
+            case GameAction.RETIRE:
+                if (this.canRetire() && await this.ui.confirmRetire()) {
+                    await this.handleRetirement();
+                } else {
+                    await this.ui.displayCompradorReport(
+                        'You need at least 1,000,000 to retire, Taipan!'
+                    );
+                }
+                break;
+        }
     }
 
     private async handleBuying(): Promise<void> {
-        // Display current prices
-        console.log('\nCurrent Prices:');
-        Object.values(CargoType).filter(cargo => typeof cargo === 'number').forEach(cargo => {
-            const price = this.trading.getCargoPrice(this.state.currentPort, cargo as CargoType);
-            console.log(`${CargoType[cargo]}: $${price}`);
-        });
+        // Display current prices via Comprador's Report
+        let priceReport = 'Current prices per unit here are:\n';
+        // Use stored prices from state instead of generating new ones
+        priceReport += `OPIUM: $${this.state.prices.opium}\n`;
+        priceReport += `SILK: $${this.state.prices.silk}\n`;
+        priceReport += `ARMS: $${this.state.prices.arms}\n`;
+        priceReport += `GENERAL: $${this.state.prices.general}\n`;
+        await this.ui.displayCompradorReport(priceReport);
 
         // Get cargo type and amount
         const cargoType = parseInt(await this.ui.question('Enter cargo type (0-3): '));
@@ -240,19 +255,25 @@ export class Game {
 
         if (this.trading.canBuy(this.state, cargoType, amount)) {
             this.trading.buy(this.state, cargoType, amount);
+            await this.ui.displayCompradorReport(
+                `Bought ${amount} units of ${CargoType[cargoType]}.`
+            );
         } else {
-            console.log('Cannot buy that amount of cargo.');
+            await this.ui.displayCompradorReport(
+                'Cannot buy that amount of cargo, Taipan.'
+            );
         }
     }
 
     private async handleSelling(): Promise<void> {
-        // Display current cargo
-        console.log('\nYour Cargo:');
+        // Display current cargo via Comprador's Report
+        let cargoReport = 'Your current cargo:\n';
         Object.values(CargoType).filter(cargo => typeof cargo === 'number').forEach(cargo => {
             const amount = this.trading.getCargoAmount(this.state, cargo as CargoType);
-            const price = this.trading.getCargoPrice(this.state.currentPort, cargo as CargoType);
-            console.log(`${CargoType[cargo]}: ${amount} units at $${price} each`);
+            const price = this.trading.getCargoPrice(this.state.location, cargo as CargoType);
+            cargoReport += `${CargoType[cargo]}: ${amount} units at $${price} each\n`;
         });
+        await this.ui.displayCompradorReport(cargoReport);
 
         // Get cargo type and amount
         const cargoType = parseInt(await this.ui.question('Enter cargo type (0-3): '));
@@ -260,88 +281,91 @@ export class Game {
 
         if (this.trading.canSell(this.state, cargoType, amount)) {
             this.trading.sell(this.state, cargoType, amount);
+            await this.ui.displayCompradorReport(
+                `Sold ${amount} units of ${CargoType[cargoType]}.`
+            );
         } else {
-            console.log('Cannot sell that amount of cargo.');
+            await this.ui.displayCompradorReport(
+                'Cannot sell that amount of cargo, Taipan.'
+            );
         }
     }
 
-    private handleMonthEnd(): void {
-        // Apply bank interest
-        this.banking.applyInterest(this.state);
-
-        // Apply debt interest
-        this.banking.applyDebtInterest(this.state);
-
-        // Reset monthly status
-        this.state.liYuenStatus = false;
-
-        // Increment month
-        this.state.month++;
-        if (this.state.month > 12) {
-            this.state.month = 1;
-            this.state.year++;
+    private async handleBanking(): Promise<void> {
+        const depositAmount = parseInt(await this.ui.question('How much to deposit? ') || '0');
+        if (depositAmount > 0 && depositAmount <= this.state.cash) {
+            this.state.cash -= depositAmount;
+            this.state.bank += depositAmount;
+            await this.ui.displayCompradorReport(
+                `Deposited $${depositAmount} in the bank.`
+            );
         }
 
-        // Update enemy difficulty
-        this.updateGameState();
+        const withdrawAmount = parseInt(await this.ui.question('How much to withdraw? ') || '0');
+        if (withdrawAmount > 0 && withdrawAmount <= this.state.bank) {
+            this.state.bank -= withdrawAmount;
+            this.state.cash += withdrawAmount;
+            await this.ui.displayCompradorReport(
+                `Withdrew $${withdrawAmount} from the bank.`
+            );
+        }
     }
 
-    private isGameOver(): boolean {
-        // Game over conditions
-        if (this.state.cash === 0 && this.state.bank === 0 && this.state.debt > 0) {
-            return true;
-        }
+    private async handleWarehouse(): Promise<void> {
+        // Show current warehouse contents
+        await this.ui.displayCompradorReport(
+            'Warehouse Contents:\n' +
+            Object.entries(this.state.inventory)
+                .map(([cargo, amount]) => `${cargo}: ${amount}`)
+                .join('\n')
+        );
 
-        if (this.state.damage >= 100) {
-            return true;
-        }
-
-        const totalMonths = (this.state.year - 1860) * 12 + this.state.month;
-        if (totalMonths >= Game.MAX_GAME_MONTHS) {
-            return true;
-        }
-
-        return false;
+        // Handle transfers...
     }
 
-    private calculateScore(): number {
-        let score = this.state.cash + this.state.bank;
-
-        // Subtract debt
-        if (this.state.debt > score) {
-            return 0;
-        }
-        score -= this.state.debt;
-
-        // Add bonus for guns and ship capacity
-        score += this.state.guns * 100;
-        score += (this.state.capacity - Game.STARTING_CAPACITY) * 1000;
-
-        // Add bonus for warehouse goods
-        for (const amount of this.state.warehouse) {
-            score += amount * 500;
+    private async handleTravel(): Promise<void> {
+        const destination = await this.ui.getTravelDestination();
+        
+        if (this.state.location === destination) {
+            await this.ui.displayCompradorReport(
+                "You're already here, Taipan!"
+            );
+            return;
         }
 
-        return score;
+        if (this.state.damage >= 90) {
+            await this.ui.displayCompradorReport(
+                "Ship damage too severe for travel, Taipan!"
+            );
+            return;
+        }
+
+        // Start travel - this sets location to AT_SEA and stores destination
+        this.travel.travel(this.state, destination);
+        await this.ui.displayCompradorReport(
+            `Setting sail for ${destination}, Taipan!`
+        );
+    }
+
+    private async handleRetirement(): Promise<void> {
+        const score = this.calculateScore();
+        await this.ui.displayRetirementMessage(score);
+        this.cleanup();
+        process.exit(0);
+    }
+
+    private cleanup(): void {
+        this.ui.cleanup();
     }
 
     private canRetire(): boolean {
-        return this.state.cash + this.state.bank >= Game.MIN_RETIRE_SCORE;
+        return (this.state.cash + this.state.bank - this.state.debt) >= Game.MIN_RETIRE_SCORE;
     }
 
-    private getTotalCargoValue(): number {
-        let total = 0;
-        for (let cargo = 0; cargo < this.state.hold.length; cargo++) {
-            const amount = this.state.hold[cargo];
-            const price = this.trading.getCargoPrice(this.state.currentPort, cargo);
-            total += amount * price;
-        }
-        return total;
-    }
-
-    private updateGameState(): void {
-        this.state.enemyHealth += 0.5;
-        this.state.enemyDamage += 0.01;
+    private calculateScore(): number {
+        const netWorth = this.state.cash + this.state.bank - this.state.debt;
+        const monthsPlayed = ((this.state.year - 1860) * 12) + this.state.month;
+        return Math.floor(netWorth / 100 / monthsPlayed);
     }
 
     // Save/Load methods would be implemented here

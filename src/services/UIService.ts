@@ -11,6 +11,7 @@ export interface UIService {
     displayEventResult(event: GameEvent, result: EventResult): Promise<void>;
     displayRetirementMessage(score: number): Promise<void>;
     displayGameOver(score: number): Promise<void>;
+    displayCompradorReport(message: string, waitTime?: number): Promise<void>;
     
     // Input functions
     getFirmName(): Promise<string>;
@@ -19,4 +20,9 @@ export interface UIService {
     confirmQuit(): Promise<boolean>;
     confirmRetire(): Promise<boolean>;
     question(prompt: string): Promise<string>;
+    getCashOrGunsChoice(): Promise<'cash' | 'guns'>;
+    
+    // Event handling
+    handleEvent(state: GameState, event: GameEvent): Promise<EventResult>;
+    displayEventOutcome(event: GameEvent, result: EventResult): Promise<void>;
 } 

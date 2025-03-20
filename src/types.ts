@@ -1,13 +1,13 @@
 // Game locations
 export enum Location {
-    AT_SEA,
-    HONG_KONG,
-    SHANGHAI,
-    NAGASAKI,
-    SAIGON,
-    MANILA,
-    SINGAPORE,
-    BATAVIA
+    AT_SEA = 'At sea',
+    HONG_KONG = 'Hong Kong',
+    SHANGHAI = 'Shanghai',
+    NAGASAKI = 'Nagasaki',
+    SAIGON = 'Saigon',
+    MANILA = 'Manila',
+    SINGAPORE = 'Singapore',
+    BATAVIA = 'Batavia'
 }
 
 // Cargo types
@@ -25,19 +25,33 @@ export interface GameState {
     bank: number;
     debt: number;
     booty: number;
-    hold: number[];
+    hold: number;  // Total cargo hold capacity
+    cargoSpace: number;  // Current available cargo space
     warehouse: number[];
     capacity: number;
     guns: number;
     damage: number;
+    location: Location;
+    nextDestination: Location | null;  // Destination port during sea travel
     month: number;
     year: number;
     liYuenStatus: boolean;
-    currentPort: Location;
     wuWarning: boolean;
     wuBailout: boolean;
     enemyHealth: number;
     enemyDamage: number;
+    prices: {
+        general: number;
+        arms: number;
+        silk: number;
+        opium: number;
+    };
+    inventory: {
+        general: number;
+        arms: number;
+        silk: number;
+        opium: number;
+    };
 }
 
 // Game actions
@@ -54,23 +68,25 @@ export enum GameAction {
 
 // Game options
 export interface GameOptions {
-    debugMode: boolean;
-    quickStart: boolean;
+    debugMode?: boolean;
+    quickStart?: boolean;
     saveFile?: string;
 }
 
 // Event types
 export enum EventType {
-    NONE,
-    SHIP_OFFER,
-    GUN_OFFER,
-    OPIUM_SEIZED,
-    STORM_DAMAGE,
-    PIRATES,
-    LI_YUEN,
-    PRICE_CHANGE,
-    MCHENRY,
-    WAREHOUSE_RAID
+    NONE = 'NONE',
+    PIRATES = 'PIRATES',
+    LI_YUEN = 'LI_YUEN',
+    LI_YUEN_EXTORTION = 'LI_YUEN_EXTORTION',
+    OPIUM_SEIZED = 'OPIUM_SEIZED',
+    WAREHOUSE_RAID = 'WAREHOUSE_RAID',
+    SHIP_OFFER = 'SHIP_OFFER',
+    GUN_OFFER = 'GUN_OFFER',
+    STORM_DAMAGE = 'STORM_DAMAGE',
+    PRICE_CHANGE = 'PRICE_CHANGE',
+    MCHENRY = 'MCHENRY',
+    MUGGED = 'MUGGED'
 }
 
 // Event result codes
@@ -101,11 +117,14 @@ export type EventData = {
     gun?: GunOffer;
     moneyLoss?: number;
     damageAmount?: number;
+    numShips?: number;  // Number of pirate ships in an encounter
+    extortionAmount?: number; // Amount Li Yuen demands as donation
 }
 
 // Event interface
 export interface GameEvent {
     type: EventType;
+    description: string;
+    requiresUserInput: boolean;
     data: EventData;
-    requiresAction: boolean;
 } 

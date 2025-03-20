@@ -49,7 +49,7 @@ export class ConsoleUIService implements UIService {
     async displayPortStats(state: GameState): Promise<void> {
         console.clear();
         console.log(`=== ${state.firmName} ===`);
-        console.log(`Location: ${Location[state.currentPort]}`);
+        console.log(`Location: ${state.location}`);
         console.log(`Date: ${state.month}/1/${state.year}`);
         console.log(`Cash: $${state.cash}`);
         console.log(`Bank: $${state.bank}`);
@@ -58,8 +58,8 @@ export class ConsoleUIService implements UIService {
         console.log(`Guns: ${state.guns}`);
         console.log(`Damage: ${state.damage}%`);
         console.log('\nCargo:');
-        Object.keys(CargoType).filter(k => isNaN(Number(k))).forEach((cargo, index) => {
-            console.log(`${cargo}: ${state.hold[index]}`);
+        Object.entries(state.inventory).forEach(([cargo, amount]) => {
+            console.log(`${cargo}: ${amount}`);
         });
         console.log('');
     }
@@ -83,6 +83,12 @@ export class ConsoleUIService implements UIService {
                 }
                 return EventResult.DECLINED;
 
+            case EventType.LI_YUEN_EXTORTION:
+                if (await this.getYesNo('Will you pay?')) {
+                    return EventResult.ACCEPTED;
+                }
+                return EventResult.DECLINED;
+
             case EventType.PIRATES:
                 console.log('Pirates spotted! Prepare for battle!');
                 if (await this.getYesNo('Try to flee?')) {
@@ -99,10 +105,18 @@ export class ConsoleUIService implements UIService {
         console.log('\n=== Event Result ===');
         switch (result) {
             case EventResult.ACCEPTED:
-                console.log('Offer accepted.');
+                if (event.type === EventType.LI_YUEN_EXTORTION) {
+                    console.log('Li Yuen is pleased with your donation.');
+                } else {
+                    console.log('Offer accepted.');
+                }
                 break;
             case EventResult.DECLINED:
-                console.log('Offer declined.');
+                if (event.type === EventType.LI_YUEN_EXTORTION) {
+                    console.log('Li Yuen is displeased. Be wary of pirates!');
+                } else {
+                    console.log('Offer declined.');
+                }
                 break;
             case EventResult.FLED:
                 console.log('You fled from the encounter.');
@@ -110,8 +124,7 @@ export class ConsoleUIService implements UIService {
             case EventResult.DAMAGED:
                 console.log(`Your ship took ${event.data.damageAmount}% damage!`);
                 break;
-            case EventResult.LOSS:
-                console.log('You suffered losses!');
+            case EventResult.NONE:
                 break;
         }
         await this.waitForKey();
@@ -129,6 +142,18 @@ export class ConsoleUIService implements UIService {
         console.log('=== Game Over ===');
         console.log(`Final Score: ${score}`);
         await this.waitForKey();
+    }
+
+    async displayCompradorReport(message: string, waitTime?: number): Promise<void> {
+        console.log('\nComprador\'s Report\n');
+        console.log(message);
+        
+        if (waitTime) {
+            // Use setTimeout and Promise to create a delay
+            await new Promise(resolve => setTimeout(resolve, waitTime));
+        } else {
+            await this.waitForKey();
+        }
     }
 
     async getFirmName(): Promise<string> {
@@ -151,12 +176,17 @@ export class ConsoleUIService implements UIService {
 
     async getTravelDestination(): Promise<Location> {
         console.log('\nDestinations:');
-        Object.keys(Location).filter(k => isNaN(Number(k))).forEach((loc, index) => {
-            console.log(`${index}. ${loc}`);
-        });
+        // Filter out AT_SEA and show only valid ports
+        Object.values(Location)
+            .filter(loc => loc !== Location.AT_SEA)
+            .forEach((loc, index) => {
+                console.log(`${index + 1}. ${loc}`);
+            });
 
-        const choice = parseInt(await this.question('Choose destination: '));
-        return choice;
+        const choice = parseInt(await this.question('Choose destination (1-7): '));
+        // Adjust index since we filtered out AT_SEA
+        const validPorts = Object.values(Location).filter(loc => loc !== Location.AT_SEA);
+        return validPorts[choice - 1];
     }
 
     async confirmQuit(): Promise<boolean> {
@@ -182,5 +212,30 @@ export class ConsoleUIService implements UIService {
 
     private async waitForKey(): Promise<void> {
         await this.question('Press Enter to continue...');
+    }
+
+    async getCashOrGunsChoice(): Promise<'cash' | 'guns'> {
+        console.clear();
+        console.log("\n");
+        console.log("Do you want to start . . .\n");
+        console.log("  1) With cash (and a debt)\n");
+        console.log("\n                >> or <<\n");
+        console.log("  2) With five guns and no cash");
+        console.log("                (But no debt!)\n");
+        
+        while (true) {
+            const choice = await this.question("          ?");
+            if (choice === '1') return 'cash';
+            if (choice === '2') return 'guns';
+            console.log("Please enter 1 or 2");
+        }
+    }
+
+    async handleEvent(state: GameState, event: GameEvent): Promise<EventResult> {
+        return this.displayEventPrompt(event);
+    }
+    
+    async displayEventOutcome(event: GameEvent, result: EventResult): Promise<void> {
+        return this.displayEventResult(event, result);
     }
 } 

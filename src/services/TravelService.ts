@@ -8,9 +8,7 @@ export interface TravelService {
 }
 
 export class SimpleTravelService implements TravelService {
-    private static readonly BASE_COST = 100;  // Base cost per unit of distance
-    
-    // Distance matrix between ports (simplified)
+    // Distance matrix between ports (for pirate encounter calculations)
     private readonly distances: { [key: string]: number } = {
         [`${Location.HONG_KONG}-${Location.SHANGHAI}`]: 2,
         [`${Location.HONG_KONG}-${Location.NAGASAKI}`]: 3,
@@ -40,29 +38,29 @@ export class SimpleTravelService implements TravelService {
         
         // Get distance from matrix, try both directions
         const distance = this.distances[`${from}-${to}`] || this.distances[`${to}-${from}`];
-        return distance || 999;  // Return large number if no route found
+        return distance || 1;  // Default to 1 if no route found
     }
 
     calculateTravelCost(from: Location, to: Location): number {
         const distance = this.calculateDistance(from, to);
-        return distance * SimpleTravelService.BASE_COST;
+        return distance * 100;  // Assuming a default cost of 100 per unit of distance
     }
 
     canTravelTo(state: GameState, destination: Location): boolean {
         // Can't travel to current location
-        if (state.currentPort === destination) return false;
+        if (state.location === destination) return false;
 
-        // Can't travel with too much damage
+        // Can't travel with critical damage
         if (state.damage >= 90) return false;
 
-        // Check if player can afford the journey
-        const cost = this.calculateTravelCost(state.currentPort, destination);
-        return state.cash >= cost;
+        return true;
     }
 
     travel(state: GameState, destination: Location): void {
-        const cost = this.calculateTravelCost(state.currentPort, destination);
-        state.cash -= cost;
-        state.currentPort = destination;
+        // First set location to AT_SEA to allow for pirate encounters
+        state.location = Location.AT_SEA;
+        
+        // The actual destination will be set after sea events are handled
+        state.nextDestination = destination;
     }
 } 

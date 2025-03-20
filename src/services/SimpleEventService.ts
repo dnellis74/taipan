@@ -2,44 +2,54 @@ import { EventService } from './EventService';
 import { GameState, GameEvent, EventResult, EventType } from '../types';
 
 export class SimpleEventService implements EventService {
-    checkRandomEvents(state: GameState): GameEvent {
-        const roll = Math.random() * 100;
-        
-        if (roll < 5) {  // 5% chance of ship offer
+    async checkRandomEvents(state: GameState): Promise<GameEvent> {
+        // Random events with 10% chance each
+        if (Math.random() < 0.1) {
+            // Ship offer
             return {
                 type: EventType.SHIP_OFFER,
+                description: "A merchant offers to sell you a larger ship.",
+                requiresUserInput: true,
                 data: {
                     ship: {
-                        price: state.capacity * 1000,
+                        price: 5000,
                         newCapacity: state.capacity + 20
                     }
-                },
-                requiresAction: true
+                }
             };
         }
         
-        if (roll < 10) {  // 5% chance of gun offer
+        if (Math.random() < 0.1) {
+            // Gun offer
             return {
                 type: EventType.GUN_OFFER,
+                description: "A weapons dealer offers to sell you guns.",
+                requiresUserInput: true,
                 data: {
                     gun: {
                         price: 1000,
                         numGuns: 2
                     }
-                },
-                requiresAction: true
+                }
             };
         }
         
-        if (roll < 15) {  // 5% chance of pirates
+        if (Math.random() < 0.1) {
+            // Pirates
             return {
                 type: EventType.PIRATES,
-                data: {},
-                requiresAction: true
+                description: "Pirates spotted!",
+                requiresUserInput: true,
+                data: {}
             };
         }
         
-        return { type: EventType.NONE, data: {}, requiresAction: false };
+        return {
+            type: EventType.NONE,
+            description: "",
+            requiresUserInput: false,
+            data: {}
+        };
     }
 
     async processMonthlyEvents(state: GameState): Promise<void> {
@@ -54,7 +64,7 @@ export class SimpleEventService implements EventService {
         return EventResult.NONE;
     }
 
-    applyEventResult(state: GameState, event: GameEvent, result: EventResult): void {
+    async applyEventResult(state: GameState, event: GameEvent, result: EventResult): Promise<void> {
         switch (event.type) {
             case EventType.SHIP_OFFER:
                 if (result === EventResult.ACCEPTED && event.data.ship) {
@@ -70,5 +80,15 @@ export class SimpleEventService implements EventService {
                 }
                 break;
         }
+    }
+
+    async updatePrices(state: GameState): Promise<void> {
+        // Set initial prices
+        state.prices = {
+            general: Math.floor(Math.random() * 50) + 50,  // 50-100
+            arms: Math.floor(Math.random() * 100) + 100,   // 100-200
+            silk: Math.floor(Math.random() * 150) + 150,   // 150-300
+            opium: Math.floor(Math.random() * 200) + 200   // 200-400
+        };
     }
 } 
