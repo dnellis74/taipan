@@ -56,23 +56,6 @@ export class EventService {
             };
         }
 
-        // Only check for pirates if at sea
-        if (state.location === Location.AT_SEA) {
-            // Calculate hostile ships like C code: (capacity/50 + guns/4 + 3) * random(0.5 to 1.5)
-            const baseShips = Math.floor(state.capacity/50 + state.guns/4 + 3);
-            const randomMultiplier = 0.5 + Math.random();
-            const numShips = Math.max(1, Math.floor(baseShips * randomMultiplier));
-            
-            return {
-                type: EventType.PIRATES,
-                description: `${numShips} hostile ships approaching, Taipan!`,
-                requiresUserInput: true,
-                data: {
-                    numShips: numShips
-                }
-            };
-        }
-
         // Check for Li Yuen extortion in Hong Kong when player has cash
         if (state.location === Location.HONG_KONG && state.cash > 0 && !state.liYuenStatus) {
             const time = ((state.year - 1860) * 12) + state.month;

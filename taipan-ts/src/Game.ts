@@ -165,6 +165,12 @@ export class Game {
                 `Arriving at ${this.state.location}...`
             );
 
+            // Check for random events when arriving at port
+            const event = await this.eventService.checkRandomEvents(this.state);
+            if (event.type !== EventType.NONE) {
+                await this.handleEvent(event);
+            }
+
             // Check for McHenry's repair offer in Hong Kong when damaged
             if (this.state.location === Location.HONG_KONG && this.state.damage > 0) {
                 // Calculate repair costs like C code
@@ -183,11 +189,6 @@ export class Game {
                 };
 
                 await this.handleEvent(event);
-            }
-            
-            // Increase difficulty like C code
-            if (this.state.battleProbability > 3) {
-                this.state.battleProbability--;
             }
             
             return;

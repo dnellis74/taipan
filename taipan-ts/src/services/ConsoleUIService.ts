@@ -147,14 +147,6 @@ export class ConsoleUIService {
                     return EventResult.ACCEPTED;
                 }
                 return EventResult.DECLINED;
-
-            case EventType.PIRATES:
-                console.log('Pirates spotted! Prepare for battle!');
-                if (await this.getYesNo('Try to flee?')) {
-                    return EventResult.FLED;
-                }
-                return EventResult.NONE;
-
             default:
                 return EventResult.NONE;
         }

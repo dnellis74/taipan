@@ -14,6 +14,10 @@ export class BattleService {
         let shipsSunk = 0;
         let shipsFled = 0;
 
+        // Track health of up to 10 visible ships like C code
+        const shipHealth: number[] = new Array(10).fill(0);
+        let shipsOnScreen = 0;
+
         while (currentShips > 0) {
             // Check ship status
             const status = Math.floor(100 - ((state.damage / state.capacity) * 100));
@@ -35,18 +39,40 @@ export class BattleService {
                 // Handle fighting
                 let shipsDestroyedThisRound = 0;
 
+                // Add new ships to screen if needed (up to 10 visible)
+                while (shipsOnScreen < Math.min(10, currentShips)) {
+                    // Find empty slot
+                    const emptySlot = shipHealth.findIndex(health => health === 0);
+                    if (emptySlot !== -1) {
+                        // Initialize ship health like C code: (ec * random) + 20
+                        shipHealth[emptySlot] = Math.floor(state.enemyHealth * Math.random()) + 20;
+                        shipsOnScreen++;
+                    }
+                }
+
                 // Fire each gun
                 for (let i = 0; i < state.guns; i++) {
-                    // Calculate damage to enemy ship (like C code's random damage)
-                    const damage = Math.floor(Math.random() * 30) + 10;
-                    
-                    // Each hit has a chance to sink a ship
-                    if (Math.random() < damage / 100) {
-                        currentShips--;
-                        shipsDestroyedThisRound++;
-                        shipsSunk++;
-                        
-                        if (currentShips === 0) break;
+                    // Find a ship to target (that isn't already sunk)
+                    let targetIndex: number;
+                    do {
+                        targetIndex = Math.floor(Math.random() * 10);
+                    } while (shipHealth[targetIndex] === 0 && shipsOnScreen > 0);
+
+                    if (shipsOnScreen > 0) {
+                        // Apply damage like C code: random(10-40)
+                        const damage = Math.floor(Math.random() * 30) + 10;
+                        shipHealth[targetIndex] -= damage;
+
+                        // Check if ship is sunk
+                        if (shipHealth[targetIndex] <= 0) {
+                            shipHealth[targetIndex] = 0;
+                            shipsOnScreen--;
+                            currentShips--;
+                            shipsDestroyedThisRound++;
+                            shipsSunk++;
+
+                            if (currentShips === 0) break;
+                        }
                     }
                 }
 
@@ -67,6 +93,17 @@ export class BattleService {
                 if (startingShips > 0 && Math.random() * startingShips > (currentShips * 0.6 / pirateType) && currentShips > 2) {
                     const divisor = Math.max(1, Math.floor(currentShips / 3 / pirateType));
                     const fleeing = Math.max(1, Math.floor(Math.random() * divisor));
+                    
+                    // Remove fleeing ships from screen
+                    let shipsToRemove = fleeing;
+                    for (let i = 0; i < shipHealth.length && shipsToRemove > 0; i++) {
+                        if (shipHealth[i] > 0) {
+                            shipHealth[i] = 0;
+                            shipsOnScreen--;
+                            shipsToRemove--;
+                        }
+                    }
+                    
                     currentShips -= fleeing;
                     shipsFled += fleeing;
                     await this.ui.displayCompradorReport(

@@ -1,0 +1,16 @@
+{
+  "name": "taipan-js",
+  "version": "1.0.0",
+  "description": "A JavaScript port of the classic Taipan trading game",
+  "type": "module",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node src/index.js",
+    "debug": "node --inspect-brk src/index.js"
+  },
+  "dependencies": {
+    "blessed": "^0.1.81"
+  },
+  "author": "",
+  "license": "MIT"
+} 
