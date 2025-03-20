@@ -404,50 +404,9 @@ Taipan, do you wish me to go to:
       this.setSubmitHandler((value) => {
         const choice = parseInt(value);
         if (!isNaN(choice) && choice >= 1 && choice <= 7) {
-          if (choice === this.game.port) {
-            // Show error if already at selected port
-            this.mainBox.setContent(`
-You're already here, Taipan.
-
-Press any key to continue...`);
-            this.screen.render();
-            
-            // Wait for keypress then resolve
-            const continueHandler = () => {
-              this.screen.removeListener('keypress', continueHandler);
-              this.clearSubmitHandler();
-              this.inputBox.hide();
-              resolve(false);
-            };
-            this.screen.on('keypress', continueHandler);
-          } else {
-            // Valid port selected, update game state
-            this.game.port = choice;
-            
-            // Show traveling message
-            this.mainBox.setContent(`
-Arriving at ${this.game.locations[choice]}...`);
-            this.screen.render();
-            
-            // Update game state for time passage
-            this.game.month++;
-            if (this.game.month === 13) {
-              this.game.month = 1;
-              this.game.year++;
-            }
-            
-            // Update prices and interest
-            this.game.debt = this.game.debt + (this.game.debt * 0.1);
-            this.game.bank = this.game.bank + (this.game.bank * 0.005);
-            this.game.setPrices();
-            
-            // Wait briefly then resolve
-            setTimeout(() => {
-              this.clearSubmitHandler();
-              this.inputBox.hide();
-              resolve(true);
-            }, 2000);
-          }
+          this.clearSubmitHandler();
+          this.inputBox.hide();
+          resolve(choice);
         }
       });
       
@@ -460,6 +419,14 @@ Arriving at ${this.game.locations[choice]}...`);
   showMessage(message) {
     this.mainBox.setLine(3, 0, message);
     this.screen.render();
+  }
+
+  async showDebug(message) {
+    if (this.game.debug) {
+      this.mainBox.setLine(3, 0, message);
+      this.screen.render();
+      await new Promise(r => setTimeout(r, 2000));
+    }
   }
 
   onKey(handler) {

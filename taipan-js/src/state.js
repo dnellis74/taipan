@@ -9,6 +9,7 @@ export const BATTLE_LOST = 4;
 
 export class GameState {
   constructor() {
+    this.debug = true;
     this.firm = '';
     this.items = ['Opium', 'Silk', 'Arms', 'General Cargo'];
     this.locations = ['At sea', 'Hong Kong', 'Shanghai', 'Nagasaki',
@@ -104,6 +105,7 @@ export class GameState {
     this.guns = 0;
     this.li = 0;
     this.bp = 10;
+    this.sp = 10;
   }
 
   gunsStart() {
@@ -113,5 +115,6 @@ export class GameState {
     this.guns = 5;
     this.li = 1;
     this.bp = 7;
+    this.sp = 10;
   }
 } 

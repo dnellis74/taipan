@@ -1,6 +1,7 @@
 import blessed from 'blessed';
 import { GameState } from './state.js';
 import { Screen } from './screen.js';
+import { CaptainsReport } from './screens/CaptainsReport.js';
 
 // Create blessed screen
 const screen = blessed.screen({
@@ -25,8 +26,9 @@ process.title = 'Taipan';
 // Initialize game state
 const game = new GameState();
 
-// Initialize screen handler
+// Initialize screen handlers
 const screenHandler = new Screen(screen, game);
+const captainsReport = new CaptainsReport(screen, game);
 
 // Handle input - only escape and ctrl-c for program exit
 screen.key(['escape', 'C-c'], function(ch, key) {
@@ -133,55 +135,23 @@ async function startGame() {
             case 'q':
             case 'Q':
               screen.removeListener('keypress', handler);
-              const didTravel = await screenHandler.showTravel();
+              const destination = await screenHandler.showTravel();
               
-              if (didTravel) {
-                // Random events during travel
-                
-                // Random chance of storm (10%)
-                if (Math.random() < 0.1) {
-                  await screenHandler.showMessage("Storm, Taipan!!");
-                  await new Promise(r => setTimeout(r, 2000));
-                  
-                  // 1/30 chance of critical damage during storm
-                  if (Math.random() < 0.033) {
-                    await screenHandler.showMessage("I think we're going down!!");
-                    await new Promise(r => setTimeout(r, 2000));
-                    
-                    // Check if ship survives based on damage
-                    const status = game.getShipStatus();
-                    if (status.percent <= 30) {
-                      await screenHandler.showMessage("We're going down, Taipan!!");
-                      await new Promise(r => setTimeout(r, 2000));
-                      isPlaying = false;
-                      break;
-                    }
-                  }
-                  
-                  await screenHandler.showMessage("We made it!!");
-                  await new Promise(r => setTimeout(r, 2000));
-                  
-                  // 1/3 chance of being blown off course
-                  if (Math.random() < 0.33) {
-                    const origPort = game.port;
-                    do {
-                      game.port = Math.floor(Math.random() * 7) + 1;
-                    } while (game.port === origPort);
-                    
-                    await screenHandler.showMessage(`We've been blown off course to ${game.locations[game.port]}`);
-                    await new Promise(r => setTimeout(r, 2000));
-                  }
-                }
-                
-                // TODO: Add more random events like:
-                // - Hostile ships
-                // - Li Yuen encounters
-                // - Cargo theft
-                // - etc.
+              // Check if destination is current port first
+              if (destination === game.port) {
+                await screenHandler.showMessage("You're already here, Taipan.");
+                await new Promise(r => setTimeout(r, 2000));
+                resolve();
+                return;
               }
               
+              // Handle the entire travel sequence
+              const travelResult = await captainsReport.handleTravelSequence(destination);
+              if (travelResult === 'game_over') {
+                isPlaying = false;
+              }
               resolve();
-              break;
+              return;
           }
         }
       };
