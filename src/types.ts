@@ -37,7 +37,7 @@ export interface GameState {
     year: number;
     liYuenStatus: boolean;
     wuWarning: boolean;
-    wuBailout: boolean;
+    wuBailout: number;  // Number of times Wu has bailed out the player
     enemyHealth: number;
     enemyDamage: number;
     prices: {
@@ -62,8 +62,9 @@ export enum GameAction {
     BANK = 3,
     WAREHOUSE = 4,
     TRAVEL = 5,
-    QUIT = 6,
-    RETIRE = 7
+    VISIT_WU = 6,
+    QUIT = 7,
+    RETIRE = 8
 }
 
 // Game options
@@ -86,7 +87,9 @@ export enum EventType {
     STORM_DAMAGE = 'STORM_DAMAGE',
     PRICE_CHANGE = 'PRICE_CHANGE',
     MCHENRY = 'MCHENRY',
-    MUGGED = 'MUGGED'
+    MUGGED = 'MUGGED',
+    WU_WARNING = 'WU_WARNING',
+    WU_BUSINESS = 'WU_BUSINESS'
 }
 
 // Event result codes
@@ -119,6 +122,14 @@ export type EventData = {
     damageAmount?: number;
     numShips?: number;  // Number of pirate ships in an encounter
     extortionAmount?: number; // Amount Li Yuen demands as donation
+    baseRepairCost?: number; // Base cost for ship repairs from McHenry
+    totalRepairCost?: number; // Total cost to repair all damage
+    damagePercent?: number; // Current ship damage as percentage
+    repairAmount?: number; // Amount player wants to spend on repairs
+    wuBraves?: number; // Number of braves Wu sends
+    wuLoanAmount?: number; // Amount Wu is willing to loan
+    wuRepayAmount?: number; // Amount to be repaid to Wu
+    wuPaymentAmount?: number; // Amount player wants to repay
 }
 
 // Event interface

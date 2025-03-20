@@ -3,6 +3,59 @@ import { Location, EventType } from '../types';
 
 export class EventService {
     async checkRandomEvents(state: GameState): Promise<GameEvent> {
+        // Check for Wu warning in Hong Kong when debt is high
+        if (state.location === Location.HONG_KONG && state.debt >= 10000 && !state.wuWarning) {
+            const braves = Math.floor(Math.random() * 50) + 50; // 50-100 braves
+            return {
+                type: EventType.WU_WARNING,
+                description: `Elder Brother Wu has sent ${braves} braves to escort you to the Wu mansion, Taipan.`,
+                requiresUserInput: false,
+                data: {
+                    wuBraves: braves
+                }
+            };
+        }
+
+        // Check for Wu bailout when player is broke
+        if (state.location === Location.HONG_KONG && 
+            state.cash === 0 && 
+            state.bank === 0 && 
+            state.guns === 0 &&
+            Object.values(state.inventory).every(amount => amount === 0)) {
+            
+            const loanAmount = Math.floor(Math.random() * 1000) + 500; // 500-1500
+            const repayAmount = Math.floor(Math.random() * 2000 * (state.wuBailout + 1)) + 1500;
+            
+            return {
+                type: EventType.WU_BUSINESS,
+                description: `Elder Brother is aware of your plight, Taipan. He is willing to loan you an additional ${loanAmount} if you will pay back ${repayAmount}.`,
+                requiresUserInput: true,
+                data: {
+                    wuLoanAmount: loanAmount,
+                    wuRepayAmount: repayAmount
+                }
+            };
+        }
+
+        // Check for McHenry in Hong Kong when ship is damaged
+        if (state.location === Location.HONG_KONG && state.damage > 0) {
+            const time = ((state.year - 1860) * 12) + state.month;
+            const baseRepairCost = Math.floor(((60 * (time + 3) / 4) * Math.random() + 25 * (time + 3) / 4) * state.capacity / 50);
+            const totalRepairCost = baseRepairCost * state.damage + 1;
+            const damagePercent = Math.floor((state.damage / state.capacity) * 100);
+            
+            return {
+                type: EventType.MCHENRY,
+                description: `McHenry from the Hong Kong Shipyards has arrived! He says, "I see ye've a wee bit of damage to yer ship. Will ye be wanting repairs? 'Tis a pity to be ${damagePercent}% damaged. We can fix yer whole ship for ${totalRepairCost}, or make partial repairs if you wish."`,
+                requiresUserInput: true,
+                data: {
+                    baseRepairCost,
+                    totalRepairCost,
+                    damagePercent
+                }
+            };
+        }
+
         // Only check for pirates if at sea
         if (state.location === Location.AT_SEA) {
             // Random hostile ships (based on capacity and guns like original)
@@ -136,7 +189,36 @@ export class EventService {
     }
 
     async applyEventResult(state: GameState, event: GameEvent, result: EventResult): Promise<void> {
-        if (event.type === EventType.LI_YUEN_EXTORTION && result === EventResult.ACCEPTED) {
+        if (event.type === EventType.WU_WARNING) {
+            state.wuWarning = true;
+        } else if (event.type === EventType.WU_BUSINESS && result === EventResult.ACCEPTED) {
+            if (event.data.wuLoanAmount && event.data.wuRepayAmount) {
+                // Handle bailout loan
+                state.cash += event.data.wuLoanAmount;
+                state.debt += event.data.wuRepayAmount;
+                state.wuBailout++;
+            } else if (event.data.wuPaymentAmount) {
+                // Handle debt repayment
+                const payment = Math.min(event.data.wuPaymentAmount, state.debt);
+                if (payment <= state.cash) {
+                    state.cash -= payment;
+                    state.debt -= payment;
+                }
+            }
+        } else if (event.type === EventType.MCHENRY && result === EventResult.ACCEPTED) {
+            const amount = event.data.repairAmount || 0;
+            const baseRepairCost = event.data.baseRepairCost || 0;
+            
+            if (amount <= state.cash) {
+                state.cash -= amount;
+                // Calculate how much damage is repaired based on amount spent
+                const repairAmount = Math.floor((amount / baseRepairCost) + 0.5);
+                state.damage = Math.max(0, state.damage - repairAmount);
+            } else {
+                // If player can't pay, no repairs are made
+                state.cash = 0;
+            }
+        } else if (event.type === EventType.LI_YUEN_EXTORTION && result === EventResult.ACCEPTED) {
             const amount = event.data.extortionAmount || 0;
             if (amount <= state.cash) {
                 state.cash -= amount;

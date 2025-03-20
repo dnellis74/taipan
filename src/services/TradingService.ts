@@ -1,8 +1,8 @@
 import { GameState, Location, CargoType } from '../types';
-import { UIService } from './UIService';
+import { ConsoleUIService } from './ConsoleUIService';
 
 export class TradingService {
-    constructor(private ui: UIService) {}
+    constructor(private ui: ConsoleUIService) {}
 
     // Base prices for each cargo type at each port, matching original game's base_price array
     private readonly baseMultipliers = {

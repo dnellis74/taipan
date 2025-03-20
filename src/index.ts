@@ -3,8 +3,9 @@ import { ConsoleUIService } from './services/ConsoleUIService';
 import { BattleService } from './services/BattleService';
 import { BankingService } from './services/BankingService';
 import { EventService } from './services/EventService';
-import { TravelService } from './services/TravelService';
 import { TradingService } from './services/TradingService';
+import { TravelService } from './services/TravelService';
+
 
 async function main() {
     // Create service instances

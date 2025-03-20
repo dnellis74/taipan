@@ -8,24 +8,24 @@ import {
     GameEvent,
     CargoType
 } from './types';
-import { UIService } from './services/UIService';
-import { BattleService } from './services/BattleService';
+
+import { ConsoleUIService } from './services/ConsoleUIService';
 import { BankingService } from './services/BankingService';
+import { BattleService } from './services/BattleService';
 import { EventService } from './services/EventService';
-import { TravelService } from './services/TravelService';
 import { TradingService } from './services/TradingService';
+import { TravelService } from './services/TravelService';
 
 export class Game {
     private static readonly STARTING_CASH = 1000;
     private static readonly STARTING_CAPACITY = 60;
     private static readonly MIN_RETIRE_SCORE = 1000000;
-    private static readonly MAX_GAME_MONTHS = 600; // 50 years
 
     private state: GameState;
     private initialized: boolean = false;
 
     constructor(
-        private ui: UIService,
+        private ui: ConsoleUIService,
         private battle: BattleService,
         private banking: BankingService,
         private eventService: EventService,
@@ -54,7 +54,7 @@ export class Game {
             year: 1860,  // Starting year for the China trade era
             liYuenStatus: false,
             wuWarning: false,
-            wuBailout: false,
+            wuBailout: 0,
             enemyHealth: 20,
             enemyDamage: 0.5,
             prices: {

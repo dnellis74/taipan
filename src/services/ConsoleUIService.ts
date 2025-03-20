@@ -1,9 +1,9 @@
-import { UIService } from './UIService';
 import { GameState, GameEvent, EventResult, GameAction, Location, CargoType, EventType } from '../types';
 import * as readline from 'readline';
 
-export class ConsoleUIService implements UIService {
+export class ConsoleUIService {
     private rl: readline.Interface;
+    private state: GameState | null = null;
 
     constructor() {
         this.rl = readline.createInterface({
@@ -47,6 +47,7 @@ export class ConsoleUIService implements UIService {
     }
 
     async displayPortStats(state: GameState): Promise<void> {
+        this.state = state;
         console.clear();
         console.log(`=== ${state.firmName} ===`);
         console.log(`Location: ${state.location}`);
@@ -67,6 +68,45 @@ export class ConsoleUIService implements UIService {
     async displayEventPrompt(event: GameEvent): Promise<EventResult> {
         console.log('\n=== Event ===');
         switch (event.type) {
+            case EventType.WU_WARNING:
+                console.log(event.description);
+                console.log('\nElder Brother Wu reminds you of the Confucian ideal of personal worthiness,');
+                console.log('and how this applies to paying one\'s debts.');
+                await this.waitForKey();
+                console.log('\nHe is reminded of a fabled barbarian who came to a bad end,');
+                console.log('after not caring for his obligations.');
+                console.log('\nHe hopes no such fate awaits you, his friend, Taipan.');
+                await this.waitForKey();
+                return EventResult.NONE;
+
+            case EventType.WU_BUSINESS:
+                console.log(event.description);
+                if (event.data.wuLoanAmount) {
+                    // Bailout offer
+                    if (await this.getYesNo('Are you willing, Taipan?')) {
+                        return EventResult.ACCEPTED;
+                    }
+                    return EventResult.DECLINED;
+                } else {
+                    // Regular debt repayment
+                    console.log('How much do you wish to repay him?');
+                    const amount = await this.getNumber('Amount: ');
+                    if (amount > 0) {
+                        event.data.wuPaymentAmount = amount;
+                        return EventResult.ACCEPTED;
+                    }
+                    return EventResult.DECLINED;
+                }
+
+            case EventType.MCHENRY:
+                console.log(event.description);
+                const repairAmount = await this.getNumber('How much will ye spend? ');
+                if (repairAmount > 0) {
+                    event.data.repairAmount = repairAmount;
+                    return EventResult.ACCEPTED;
+                }
+                return EventResult.DECLINED;
+
             case EventType.SHIP_OFFER:
                 console.log(`You are offered a larger ship with capacity ${event.data.ship?.newCapacity}`);
                 console.log(`Price: $${event.data.ship?.price}`);
@@ -105,14 +145,31 @@ export class ConsoleUIService implements UIService {
         console.log('\n=== Event Result ===');
         switch (result) {
             case EventResult.ACCEPTED:
-                if (event.type === EventType.LI_YUEN_EXTORTION) {
+                if (event.type === EventType.WU_BUSINESS) {
+                    if (event.data.wuLoanAmount) {
+                        console.log('Very well, Taipan. Good joss!!');
+                    } else {
+                        console.log('Elder Brother Wu is pleased with your payment.');
+                    }
+                } else if (event.type === EventType.MCHENRY) {
+                    console.log('McHenry and his crew get to work on the repairs.');
+                } else if (event.type === EventType.LI_YUEN_EXTORTION) {
                     console.log('Li Yuen is pleased with your donation.');
                 } else {
                     console.log('Offer accepted.');
                 }
                 break;
             case EventResult.DECLINED:
-                if (event.type === EventType.LI_YUEN_EXTORTION) {
+                if (event.type === EventType.WU_BUSINESS) {
+                    if (event.data.wuLoanAmount) {
+                        console.log('Very well, Taipan, the game is over!');
+                        // This should trigger game over in the main game loop
+                    } else {
+                        console.log('Elder Brother Wu understands. Return when you can pay.');
+                    }
+                } else if (event.type === EventType.MCHENRY) {
+                    console.log('McHenry shakes his head and leaves.');
+                } else if (event.type === EventType.LI_YUEN_EXTORTION) {
                     console.log('Li Yuen is displeased. Be wary of pirates!');
                 } else {
                     console.log('Offer declined.');
@@ -167,10 +224,16 @@ export class ConsoleUIService implements UIService {
         console.log('3. Bank');
         console.log('4. Warehouse');
         console.log('5. Travel');
-        console.log('6. Quit');
-        console.log('7. Retire');
+        if (this.state?.location === Location.HONG_KONG) {
+            console.log('6. Visit Wu');
+            console.log('7. Quit');
+            console.log('8. Retire');
+        } else {
+            console.log('7. Quit');
+            console.log('8. Retire');
+        }
 
-        const choice = parseInt(await this.question('Choose action (1-7): '));
+        const choice = parseInt(await this.question('Choose action: '));
         return choice;
     }
 
@@ -198,11 +261,20 @@ export class ConsoleUIService implements UIService {
     }
 
     async question(prompt: string): Promise<string> {
-        return new Promise(resolve => {
-            this.rl.question(prompt, answer => {
+        return new Promise((resolve) => {
+            this.rl.question(prompt, (answer) => {
                 resolve(answer);
             });
         });
+    }
+
+    private async getNumber(prompt: string): Promise<number> {
+        const answer = await this.question(prompt);
+        if (answer.toLowerCase() === 'a') {
+            return -1; // Special case for 'all' like in original game
+        }
+        const num = parseInt(answer, 10);
+        return isNaN(num) ? 0 : num;
     }
 
     private async getYesNo(prompt: string): Promise<boolean> {
