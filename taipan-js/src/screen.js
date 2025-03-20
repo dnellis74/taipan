@@ -190,8 +190,12 @@ Do you want to start . . .
     content = content.replace(/Arms\s+Vacant:/g, `Arms  ${padNum(this.game.warehouseStock[2])}     Vacant: ${vacant}`);
     content = content.replace(/General\s+/g, `General ${padNum(this.game.warehouseStock[3])}`);
     
-    // Hold values
-    content = content.replace(/Hold\s+Guns/g, `Hold ${padNum(this.game.hold)}     Guns ${this.game.guns}`);
+    // Hold values - if hold is negative, show "Overload" instead of the number
+    if (this.game.hold < 0) {
+      content = content.replace(/Hold\s+Guns/g, `Hold Overload   Guns ${this.game.guns}`);
+    } else {
+      content = content.replace(/Hold\s+Guns/g, `Hold ${padNum(this.game.hold)}     Guns ${this.game.guns}`);
+    }
     content = content.replace(/Opium\s+/g, `Opium ${padNum(this.game.holdStock[0])}`);
     content = content.replace(/Silk\s+/g, `Silk  ${padNum(this.game.holdStock[1])}`);
     content = content.replace(/Arms\s+/g, `Arms  ${padNum(this.game.holdStock[2])}`);
@@ -202,6 +206,18 @@ Do you want to start . . .
 
     this.mainBox.setContent(content);
     this.screen.render();
+  }
+
+  showOverload() {
+    return new Promise((resolve) => {
+      this.mainBox.setContent(`
+Comprador's Report
+
+Your ship is overloaded, Taipan!!`);
+      
+      this.screen.render();
+      setTimeout(() => resolve(), 2000);
+    });
   }
 
   showPortChoices(message) {
@@ -443,5 +459,338 @@ Taipan, do you wish me to go to:
 
   clearSubmitHandler() {
     this.onSubmit = null;
+  }
+
+  showBank() {
+    return new Promise(async (resolve) => {
+      // First handle deposits
+      this.mainBox.setContent(`
+How much will you deposit, Taipan?
+
+You have: ${this.game.formatNumber(this.game.cash)} in cash`);
+      
+      // Set up input handler for deposit amount
+      this.setSubmitHandler((value) => {
+        let amount = parseInt(value);
+        if (value === '') amount = this.game.cash; // Deposit all if empty
+        
+        if (!isNaN(amount) && amount >= 0 && amount <= this.game.cash) {
+          // Update game state
+          this.game.cash -= amount;
+          this.game.bank += amount;
+          
+          this.clearSubmitHandler();
+          this.inputBox.hide();
+          
+          // Show updated stats before withdrawal
+          this.showPortStats();
+          
+          // Now handle withdrawals
+          this.mainBox.setContent(`
+How much will you withdraw, Taipan?
+
+You have: ${this.game.formatNumber(this.game.bank)} in the bank`);
+          
+          // Set up input handler for withdrawal amount
+          this.setSubmitHandler((value) => {
+            let amount = parseInt(value);
+            if (value === '') amount = this.game.bank; // Withdraw all if empty
+            
+            if (!isNaN(amount) && amount >= 0 && amount <= this.game.bank) {
+              // Update game state
+              this.game.bank -= amount;
+              this.game.cash += amount;
+              
+              this.clearSubmitHandler();
+              this.inputBox.hide();
+              resolve();
+            }
+          });
+          
+          this.inputBox.show();
+          this.inputBox.focus();
+          this.screen.render();
+        }
+      });
+      
+      this.inputBox.show();
+      this.inputBox.focus();
+      this.screen.render();
+    });
+  }
+
+  showTransfer() {
+    return new Promise(async (resolve) => {
+      // Check if there's any cargo to transfer
+      const hasCargo = this.game.holdStock.some(x => x > 0) || this.game.warehouseStock.some(x => x > 0);
+      
+      if (!hasCargo) {
+        this.mainBox.setContent(`
+Comprador's Report
+
+You have no cargo, Taipan.`);
+        this.screen.render();
+        await new Promise(r => setTimeout(r, 2000));
+        resolve();
+        return;
+      }
+
+      // Handle each type of cargo
+      for (let i = 0; i < 4; i++) {
+        // First handle ship to warehouse transfers if there's cargo in hold
+        if (this.game.holdStock[i] > 0) {
+          await new Promise(resolveItem => {
+            this.mainBox.setContent(`
+Comprador's Report
+
+How much ${this.game.items[i]} shall I move to the warehouse, Taipan?
+
+You have: ${this.game.formatNumber(this.game.holdStock[i])} in hold
+Warehouse space available: ${this.game.formatNumber(10000 - this.game.warehouseStock.reduce((a,b) => a+b, 0))}`);
+
+            // Set up input handler for transfer amount
+            this.setSubmitHandler((value) => {
+              let amount = parseInt(value);
+              if (value === '') amount = this.game.holdStock[i]; // Transfer all if empty
+              
+              const warehouseSpace = 10000 - this.game.warehouseStock.reduce((a,b) => a+b, 0);
+              
+              if (!isNaN(amount) && amount >= 0 && amount <= this.game.holdStock[i] && amount <= warehouseSpace) {
+                // Update game state
+                this.game.holdStock[i] -= amount;
+                this.game.warehouseStock[i] += amount;
+                this.game.hold += amount;
+                
+                this.clearSubmitHandler();
+                this.inputBox.hide();
+                this.showPortStats();
+                resolveItem();
+              }
+            });
+            
+            this.inputBox.show();
+            this.inputBox.focus();
+            this.screen.render();
+          });
+        }
+
+        // Then handle warehouse to ship transfers if there's cargo in warehouse
+        if (this.game.warehouseStock[i] > 0) {
+          await new Promise(resolveItem => {
+            this.mainBox.setContent(`
+Comprador's Report
+
+How much ${this.game.items[i]} shall I move aboard ship, Taipan?
+
+You have: ${this.game.formatNumber(this.game.warehouseStock[i])} in warehouse`);
+
+            // Set up input handler for transfer amount
+            this.setSubmitHandler((value) => {
+              let amount = parseInt(value);
+              if (value === '') amount = this.game.warehouseStock[i]; // Transfer all if empty
+              
+              if (!isNaN(amount) && amount >= 0 && amount <= this.game.warehouseStock[i]) {
+                // Update game state
+                this.game.warehouseStock[i] -= amount;
+                this.game.holdStock[i] += amount;
+                this.game.hold -= amount;
+                
+                this.clearSubmitHandler();
+                this.inputBox.hide();
+                this.showPortStats();
+                resolveItem();
+              }
+            });
+            
+            this.inputBox.show();
+            this.inputBox.focus();
+            this.screen.render();
+          });
+        }
+      }
+      
+      resolve();
+    });
+  }
+
+  showWu() {
+    return new Promise(async (resolve) => {
+      this.mainBox.setContent(`
+Comprador's Report
+
+Do you have business with Elder Brother
+Wu, the moneylender?`);
+
+      // Set up input handler for initial yes/no
+      const handleInitialChoice = async (ch, key) => {
+        if (key.name === 'n' || key.name === 'N') {
+          this.screen.removeListener('keypress', handleInitialChoice);
+          resolve();
+          return;
+        }
+        
+        if (key.name === 'y' || key.name === 'Y') {
+          this.screen.removeListener('keypress', handleInitialChoice);
+          
+          // Check if player is completely broke
+          const hasCargo = this.game.holdStock.some(x => x > 0) || this.game.warehouseStock.some(x => x > 0);
+          const hasAssets = this.game.cash > 0 || this.game.bank > 0 || this.game.guns > 0 || hasCargo;
+          
+          if (!hasAssets) {
+            // Handle bailout offer
+            const bailoutAmount = Math.floor(Math.random() * 1500) + 500;
+            const repayAmount = Math.floor(Math.random() * 2000 * (this.game.wuBailout + 1)) + 1500;
+            
+            this.mainBox.setContent(`
+Comprador's Report
+
+Elder Brother is aware of your plight,
+Taipan. He is willing to loan you an
+additional ${this.game.formatNumber(bailoutAmount)} if you will pay back
+${this.game.formatNumber(repayAmount)}. Are you willing, Taipan?`);
+
+            const handleBailout = (ch, key) => {
+              if (key.name === 'y' || key.name === 'Y') {
+                this.game.cash += bailoutAmount;
+                this.game.debt += repayAmount;
+                this.game.wuBailout++;
+                
+                this.mainBox.setContent(`
+Comprador's Report
+
+Very well, Taipan. Good joss!!`);
+                
+                this.screen.render();
+                setTimeout(() => resolve(), 2000);
+              } else if (key.name === 'n' || key.name === 'N') {
+                this.mainBox.setContent(`
+Comprador's Report
+
+Very well, Taipan, the game is over!`);
+                
+                this.screen.render();
+                setTimeout(() => {
+                  this.game.gameOver = true;
+                  resolve();
+                }, 2000);
+              }
+              this.screen.removeListener('keypress', handleBailout);
+            };
+            
+            this.screen.on('keypress', handleBailout);
+            this.screen.render();
+            return;
+          }
+
+          // Handle debt repayment if player has cash and debt
+          if (this.game.cash > 0 && this.game.debt > 0) {
+            this.mainBox.setContent(`
+Comprador's Report
+
+How much do you wish to repay him?
+
+You have: ${this.game.formatNumber(this.game.cash)} in cash
+You owe: ${this.game.formatNumber(this.game.debt)}`);
+
+            // Set up input handler for repayment amount
+            this.setSubmitHandler((value) => {
+              let amount = parseInt(value);
+              if (value === '') {
+                // Give Wu the lesser of cash or debt
+                amount = Math.min(this.game.cash, this.game.debt);
+              }
+              
+              if (!isNaN(amount) && amount >= 0 && amount <= this.game.cash) {
+                if (amount > this.game.debt) {
+                  amount = this.game.debt;
+                  this.mainBox.setContent(`
+Comprador's Report
+
+Taipan, you owe only ${this.game.formatNumber(this.game.debt)}.
+Paid in full.`);
+                  this.screen.render();
+                }
+                
+                this.game.cash -= amount;
+                this.game.debt -= amount;
+                
+                this.clearSubmitHandler();
+                this.inputBox.hide();
+                this.showPortStats();
+                
+                // Continue to borrowing phase
+                handleBorrowing();
+              }
+            });
+            
+            this.inputBox.show();
+            this.inputBox.focus();
+            this.screen.render();
+          } else {
+            handleBorrowing();
+          }
+        }
+      };
+
+      const handleBorrowing = () => {
+        this.mainBox.setContent(`
+Comprador's Report
+
+How much do you wish to borrow?
+
+You can borrow up to: ${this.game.formatNumber(this.game.cash * 2)}`);
+
+        // Set up input handler for borrowing amount
+        this.setSubmitHandler((value) => {
+          let amount = parseInt(value);
+          if (value === '') amount = this.game.cash * 2;
+          
+          if (!isNaN(amount) && amount >= 0 && amount <= (this.game.cash * 2)) {
+            this.game.cash += amount;
+            this.game.debt += amount;
+            
+            // Random chance of being robbed after visiting Wu if debt is high
+            if (this.game.debt > 20000 && this.game.cash > 0 && Math.random() < 0.2) {
+              const numGuards = Math.floor(Math.random() * 3) + 1;
+              this.game.cash = 0;
+              
+              this.mainBox.setContent(`
+Comprador's Report
+
+Bad joss!!
+${numGuards} of your bodyguards have been killed
+by cutthroats and you have been robbed
+of all of your cash, Taipan!!`);
+              
+              this.screen.render();
+              setTimeout(() => resolve(), 3000);
+            } else {
+              this.clearSubmitHandler();
+              this.inputBox.hide();
+              resolve();
+            }
+          } else {
+            this.mainBox.setContent(`
+Comprador's Report
+
+He won't loan you so much, Taipan!`);
+            
+            this.screen.render();
+            setTimeout(() => {
+              this.clearSubmitHandler();
+              this.inputBox.hide();
+              resolve();
+            }, 2000);
+          }
+        });
+        
+        this.inputBox.show();
+        this.inputBox.focus();
+        this.screen.render();
+      };
+
+      this.screen.on('keypress', handleInitialChoice);
+      this.screen.render();
+    });
   }
 } 

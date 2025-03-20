@@ -399,7 +399,7 @@ export class CaptainsReport {
     
     // Check for pirates
     let battleChance = Math.floor(Math.random() * 100);
-    await this.showMessage(`bc: ${battleChance} bp: ${this.game.bp}`);
+    //await this.showMessage(`bc: ${battleChance} bp: ${this.game.bp}`);
     if (battleChance < this.game.bp) {
       let num_ships = Math.floor(Math.random() * ((this.game.capacity / 10) + this.game.guns)) + 1;
       if (num_ships > 9999) {
@@ -414,7 +414,7 @@ export class CaptainsReport {
     
     // Check for storm
     let stormChance = Math.floor(Math.random() * 100);
-    await this.showMessage(`sc: ${stormChance} sp: ${this.game.sp}`);
+    //await this.showMessage(`sc: ${stormChance} sp: ${this.game.sp}`);
     if (stormChance < this.game.sp) {
       const stormResult = await this.showStorm();
       if (stormResult === 'sunk') {

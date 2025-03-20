@@ -109,19 +109,28 @@ async function startGame() {
             case 'v':
             case 'V':
               if (game.port === 1) { // Only in Hong Kong
-                // TODO: Visit Bank
+                screen.removeListener('keypress', handler);
+                await screenHandler.showBank();
+                resolve();
               }
               break;
             case 't':
             case 'T':
               if (game.port === 1) { // Only in Hong Kong
-                // TODO: Transfer Cargo
+                screen.removeListener('keypress', handler);
+                await screenHandler.showTransfer();
+                resolve();
               }
               break;
             case 'w':
             case 'W':
               if (game.port === 1) { // Only in Hong Kong
-                // TODO: Wheedle Wu
+                screen.removeListener('keypress', handler);
+                await screenHandler.showWu();
+                if (game.gameOver) {
+                  isPlaying = false;
+                }
+                resolve();
               }
               break;
             case 'r':
@@ -135,6 +144,14 @@ async function startGame() {
             case 'q':
             case 'Q':
               screen.removeListener('keypress', handler);
+              
+              // Check for overload before allowing travel
+              if (game.hold < 0) {
+                await screenHandler.showOverload();
+                resolve();
+                return;
+              }
+              
               const destination = await screenHandler.showTravel();
               
               // Check if destination is current port first
