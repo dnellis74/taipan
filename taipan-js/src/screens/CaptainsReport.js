@@ -43,8 +43,76 @@ export class CaptainsReport {
       }
     });
 
+    // Initialize cursor position
+    this.cursorY = 0;
+    this.cursorX = 0;
+    
+    // Initialize content buffer
+    this.contentBuffer = Array(24).fill(' '.repeat(80));
+
     // Hide initially
     this.hide();
+  }
+
+  // Mimic curses move function
+  move(y, x) {
+    this.cursorY = y;
+    this.cursorX = x;
+  }
+
+  // Mimic curses clrtoeol (clear to end of line)
+  clrtoeol() {
+    const currentLine = this.contentBuffer[this.cursorY] || '';
+    this.contentBuffer[this.cursorY] = currentLine.substring(0, this.cursorX) + ' '.repeat(80 - this.cursorX);
+    this.messageBox.setContent(this.contentBuffer.join('\n'));
+  }
+
+  // Mimic curses printw
+  printw(text) {
+    // Ensure we have enough lines
+    while (this.contentBuffer.length <= this.cursorY) {
+      this.contentBuffer.push(' '.repeat(80));
+    }
+
+    // Get current line
+    let line = this.contentBuffer[this.cursorY];
+
+    // Insert text at cursor position
+    const before = line.substring(0, this.cursorX);
+    const after = line.substring(this.cursorX + text.length);
+    this.contentBuffer[this.cursorY] = before + text + after;
+
+    // Update cursor position
+    this.cursorX += text.length;
+
+    // Handle newlines in text
+    if (text.includes('\n')) {
+      const lines = text.split('\n');
+      for (let i = 1; i < lines.length; i++) {
+        this.cursorY++;
+        this.cursorX = lines[i].length;
+        while (this.contentBuffer.length <= this.cursorY) {
+          this.contentBuffer.push(' '.repeat(80));
+        }
+        this.contentBuffer[this.cursorY] = lines[i] + ' '.repeat(80 - lines[i].length);
+      }
+    }
+
+    // Update display
+    this.messageBox.setContent(this.contentBuffer.join('\n'));
+  }
+
+  // Clear entire screen
+  clear() {
+    this.contentBuffer = Array(24).fill(' '.repeat(80));
+    this.messageBox.setContent(this.contentBuffer.join('\n'));
+    this.cursorX = 0;
+    this.cursorY = 0;
+  }
+
+  // Refresh display
+  refresh() {
+    this.screen.render();
   }
 
   show() {
@@ -58,54 +126,11 @@ export class CaptainsReport {
   }
 
   async showMessage(message) {
-    this.messageBox.setContent(message);
-    this.screen.render();
+    this.clear();
+    this.move(0, 0);
+    this.printw(message);
+    this.refresh();
     await new Promise(r => setTimeout(r, 2000));
-  }
-
-  drawLorcha(x, y) {
-    const lines = this.messageBox.getContent().split('\n');
-    while (lines.length <= y + 3) {
-      lines.push(' '.repeat(80));
-    }
-    
-    lines[y] = this.setLineContent(lines[y], x, "-|-_|_  ");
-    lines[y + 1] = this.setLineContent(lines[y + 1], x, "-|-_|_  ");
-    lines[y + 2] = this.setLineContent(lines[y + 2], x, "_|__|__/");
-    lines[y + 3] = this.setLineContent(lines[y + 3], x, "\\_____/ ");
-    
-    this.messageBox.setContent(lines.join('\n'));
-    this.screen.render();
-  }
-
-  clearLorcha(x, y) {
-    const lines = this.messageBox.getContent().split('\n');
-    while (lines.length <= y + 3) {
-      lines.push(' '.repeat(80));
-    }
-    
-    lines[y] = this.setLineContent(lines[y], x, "        ");
-    lines[y + 1] = this.setLineContent(lines[y + 1], x, "        ");
-    lines[y + 2] = this.setLineContent(lines[y + 2], x, "        ");
-    lines[y + 3] = this.setLineContent(lines[y + 3], x, "        ");
-    
-    this.messageBox.setContent(lines.join('\n'));
-    this.screen.render();
-  }
-
-  drawBlast(x, y) {
-    const lines = this.messageBox.getContent().split('\n');
-    while (lines.length <= y + 3) {
-      lines.push(' '.repeat(80));
-    }
-    
-    lines[y] = this.setLineContent(lines[y], x, "********");
-    lines[y + 1] = this.setLineContent(lines[y + 1], x, "********");
-    lines[y + 2] = this.setLineContent(lines[y + 2], x, "********");
-    lines[y + 3] = this.setLineContent(lines[y + 3], x, "********");
-    
-    this.messageBox.setContent(lines.join('\n'));
-    this.screen.render();
   }
 
   setLineContent(line, x, content) {
@@ -115,513 +140,10 @@ export class CaptainsReport {
     return line.substring(0, x) + content + line.substring(x + content.length);
   }
 
-  async sinkLorcha(x, y) {
-    const lines = this.messageBox.getContent().split('\n');
-    while (lines.length <= y + 3) {
-      lines.push(' '.repeat(80));
-    }
-    
-    // Sinking animation frames
-    const frames = [
-      {
-        lines: [
-          "        ",
-          "-|-_|_  ",
-          "-|-_|_  ",
-          "_|__|__/"
-        ]
-      },
-      {
-        lines: [
-          "        ",
-          "        ",
-          "-|-_|_  ",
-          "-|-_|_  "
-        ]
-      },
-      {
-        lines: [
-          "        ",
-          "        ",
-          "        ",
-          "-|-_|_  "
-        ]
-      },
-      {
-        lines: [
-          "        ",
-          "        ",
-          "        ",
-          "        "
-        ]
-      }
-    ];
-
-    // Play sinking animation
-    for (const frame of frames) {
-      for (let i = 0; i < 4; i++) {
-        lines[y + i] = this.setLineContent(lines[y + i], x, frame.lines[i]);
-      }
-      this.messageBox.setContent(lines.join('\n'));
-      this.screen.render();
-      await new Promise(r => setTimeout(r, 500));
-    }
-  }
-
-  async getPlayerOrder() {
-    return new Promise((resolve) => {
-      this.inputBox.show();
-      this.inputBox.focus();
-      
-      const handleInput = (ch, key) => {
-        if (key.name === 'enter') {
-          const input = this.inputBox.getValue().toLowerCase();
-          this.inputBox.clearValue();
-          this.inputBox.hide();
-          this.screen.removeListener('keypress', handleInput);
-          
-          if (input === 'f') {
-            resolve(1); // Fight
-          } else if (input === 'r') {
-            resolve(2); // Run
-          } else if (input === 't') {
-            resolve(3); // Throw cargo
-          } else {
-            // Invalid input, default to fight
-            resolve(1);
-          }
-        }
-      };
-      
-      this.screen.on('keypress', handleInput);
-    });
-  }
-
-  async showThrowCargo() {
-    return new Promise((resolve) => {
-      // Show current cargo
-      const content = this.messageBox.getContent().split('\n');
-      content[18] = 'You have the following on board, Taipan:';
-      content[19] = `   Opium: ${this.game.holdStock[0]}`.padEnd(25) + `Silk: ${this.game.holdStock[1]}`;
-      content[20] = `   Arms: ${this.game.holdStock[2]}`.padEnd(25) + `General: ${this.game.holdStock[3]}`;
-      
-      // Update message box
-      this.messageBox.setContent(content.join('\n'));
-      this.setLine(3, 0, 'What shall I throw overboard, Taipan? (O/S/A/G/*=All)');
-      this.screen.render();
-
-      const handleCargoChoice = (ch, key) => {
-        let cargoIndex = -1;
-        if (key.name === 'o' || key.name === 'O') cargoIndex = 0;
-        else if (key.name === 's' || key.name === 'S') cargoIndex = 1;
-        else if (key.name === 'a' || key.name === 'A') cargoIndex = 2;
-        else if (key.name === 'g' || key.name === 'G') cargoIndex = 3;
-        else if (ch === '*') cargoIndex = 4;
-
-        if (cargoIndex >= 0) {
-          this.screen.removeListener('keypress', handleCargoChoice);
-          
-          if (cargoIndex === 4) {
-            // Throw all cargo
-            const totalCargo = this.game.holdStock.reduce((a, b) => a + b, 0);
-            if (totalCargo > 0) {
-              const escapeBonus = Math.floor(totalCargo / 10);
-              this.game.holdStock = [0, 0, 0, 0];
-              this.game.hold += totalCargo;
-              resolve(escapeBonus);
-            } else {
-              this.setLine(3, 0, "There's nothing there, Taipan!");
-              this.screen.render();
-              setTimeout(() => resolve(0), 2000);
-            }
-          } else {
-            // Show amount prompt for specific cargo type
-            this.setLine(3, 0, `How much, Taipan?`);
-            this.screen.render();
-
-            // Handle amount input directly with keypress
-            const handleAmount = (ch, key) => {
-              if (key.name === 'return') {
-                this.screen.removeListener('keypress', handleAmount);
-                let amount = parseInt(this.inputBuffer || '');
-                this.inputBuffer = '';
-                
-                if (isNaN(amount)) {
-                  // If no amount specified, use all available cargo
-                  amount = this.game.holdStock[cargoIndex];
-                }
-                
-                if (amount >= 0 && amount <= this.game.holdStock[cargoIndex]) {
-                  if (amount > 0) {
-                    const escapeBonus = Math.floor(amount / 10);
-                    this.game.holdStock[cargoIndex] -= amount;
-                    this.game.hold += amount;
-                    resolve(escapeBonus);
-                  } else {
-                    resolve(0);
-                  }
-                } else {
-                  this.setLine(3, 0, `You only have ${this.game.holdStock[cargoIndex]}, Taipan!`);
-                  this.screen.render();
-                  setTimeout(() => resolve(0), 2000);
-                }
-              } else if (key.name === 'backspace') {
-                if (this.inputBuffer) {
-                  this.inputBuffer = this.inputBuffer.slice(0, -1);
-                  this.setLine(3, 0, `How much, Taipan? ${this.inputBuffer}`);
-                  this.screen.render();
-                }
-              } else if (/^\d$/.test(ch)) {
-                this.inputBuffer = (this.inputBuffer || '') + ch;
-                this.setLine(3, 0, `How much, Taipan? ${this.inputBuffer}`);
-                this.screen.render();
-              }
-            };
-
-            this.inputBuffer = '';
-            this.screen.on('keypress', handleAmount);
-          }
-        }
-      };
-
-      this.screen.on('keypress', handleCargoChoice);
-    });
-  }
-
-  async showBattle(numShips) {
-    return new Promise(async (resolve) => {
-      // Clear the main display area
-      this.messageBox.setContent('');
-      
-      // Initialize battle state
-      let shipsOnScreen = Array(10).fill(0);
-      let numOnScreen = 0;
-      let escapeBonus = 0;
-      const time = ((this.game.year - 1860) * 12) + this.game.month;
-      
-      // Show initial battle stats
-      this.showBattleStats(numShips, 0);
-      
-      // Draw ships in two rows (up to 5 in each row)
-      for (let i = 0; i < Math.min(numShips, 10); i++) {
-        const x = (i < 5) ? ((i + 1) * 10) : ((i - 4) * 10);
-        const y = (i < 5) ? 6 : 12;
-        
-        // Calculate ship health
-        shipsOnScreen[i] = Math.floor(Math.random() * this.game.enemyHealth + 20);
-        this.drawLorcha(x, y);
-        numOnScreen++;
-        
-        // Small delay between drawing ships
-        await new Promise(r => setTimeout(r, 100));
-      }
-      
-      // Show remaining ships indicator if needed
-      if (numShips > numOnScreen) {
-        this.setLine(11, 62, '+');
-      }
-      
-      while (true) {
-        // Reset and redraw battle display at start of each round
-        this.messageBox.setContent('');
-        this.screen.render();
-
-        // Redraw battle stats
-        this.showBattleStats(numShips, 0);
-
-        // Redraw ships in two rows
-        for (let i = 0; i < 10; i++) {
-          if (shipsOnScreen[i] > 0) {
-            const x = (i < 5) ? ((i + 1) * 10) : ((i - 4) * 10);
-            const y = (i < 5) ? 6 : 12;
-            this.drawLorcha(x, y);
-          }
-        }
-
-        // Show remaining ships indicator if needed
-        if (numShips > numOnScreen) {
-          this.setLine(11, 62, '+');
-        }
-
-        // Show ship status
-        const status = Math.floor(100 - ((this.game.damage / this.game.capacity) * 100));
-        this.setLine(3, 0, `Current seaworthiness: ${status}%`);
-        this.screen.render();
-        await new Promise(r => setTimeout(r, 1000));
-
-        // Show order prompt below ships
-        this.setLine(16, 0, 'Taipan, what shall we do??    (f=Fight, r=Run, t=Throw cargo)');
-        this.screen.render();
-        
-        // Get player order
-        const order = await new Promise(resolveOrder => {
-          const handleOrder = (ch, key) => {
-            let orderValue = 0;
-            if (key.name === 'f' || key.name === 'F') orderValue = 1;
-            else if (key.name === 'r' || key.name === 'R') orderValue = 2;
-            else if (key.name === 't' || key.name === 'T') orderValue = 3;
-            
-            if (orderValue > 0) {
-              this.screen.removeListener('keypress', handleOrder);
-              resolveOrder(orderValue);
-            }
-          };
-          
-          this.screen.on('keypress', handleOrder);
-        });
-        
-        this.showBattleStats(numShips, order);
-        
-        if (order === 3) {
-          // Handle throwing cargo
-          const bonus = await this.showThrowCargo();
-          escapeBonus += bonus;
-          if (bonus > 0) {
-            this.setLine(3, 0, "Let's hope we lose 'em, Taipan!");
-            this.screen.render();
-            await new Promise(r => setTimeout(r, 2000));
-          }
-          continue;
-        }
-        
-        if (order === 2) {
-          // Try to escape with bonus from thrown cargo
-          const escapeChance = Math.random() * (3 + escapeBonus) > Math.random() * numShips;
-          if (escapeChance) {
-            this.setLine(3, 0, "We got away from 'em, Taipan!");
-            this.screen.render();
-            await new Promise(r => setTimeout(r, 2000));
-            resolve('fled');
-            return;
-          } else {
-            this.setLine(3, 0, "Couldn't lose 'em.");
-            this.screen.render();
-            await new Promise(r => setTimeout(r, 2000));
-          }
-        }
-        
-        if (order === 1) {
-          if (this.game.guns === 0) {
-            this.setLine(3, 0, "We have no guns, Taipan!!");
-            this.screen.render();
-            await new Promise(r => setTimeout(r, 2000));
-            continue;
-          }
-
-          // Execute fight sequence
-          this.setLine(3, 0, "Aye, we'll fight 'em, Taipan.");
-          this.screen.render();
-          await new Promise(r => setTimeout(r, 2000));
-
-          this.setLine(3, 0, "We're firing on 'em, Taipan!");
-          this.screen.render();
-          await new Promise(r => setTimeout(r, 1000));
-
-          // Fire each gun
-          for (let i = 0; i < this.game.guns; i++) {
-            // Update shots remaining
-            this.setLine(3, 30, `(${this.game.guns - i - 1} shots remaining.)`);
-            this.screen.render();
-            await new Promise(r => setTimeout(r, 100));
-
-            // Pick a target that's still alive
-            let targeted;
-            do {
-              targeted = Math.floor(Math.random() * 10);
-            } while (shipsOnScreen[targeted] === 0 && numOnScreen > 0);
-
-            // Calculate hit position
-            const x = (targeted < 5) ? ((targeted + 1) * 10) : ((targeted - 4) * 10);
-            const y = (targeted < 5) ? 6 : 12;
-
-            // Animate the hit
-            for (let j = 0; j < 2; j++) {
-              this.drawBlast(x, y);
-              await new Promise(r => setTimeout(r, 100));
-              if (shipsOnScreen[targeted] > 0) this.drawLorcha(x, y);
-              await new Promise(r => setTimeout(r, 100));
-            }
-
-            // Calculate and apply damage
-            const damage = Math.floor(Math.random() * 30) + 10;
-            shipsOnScreen[targeted] -= damage;
-
-            // If ship is destroyed
-            if (shipsOnScreen[targeted] <= 0) {
-              numShips--;
-              numOnScreen--;
-              shipsOnScreen[targeted] = 0;
-              await this.sinkLorcha(x, y);
-
-              // Update + indicator if needed
-              if (numShips === numOnScreen) {
-                this.setLine(11, 62, ' ');
-              }
-
-              this.showBattleStats(numShips, order);
-            }
-
-            // Exit if all ships destroyed
-            if (numShips === 0) {
-              this.setLine(3, 0, "We got 'em all, Taipan!");
-              this.screen.render();
-              await new Promise(r => setTimeout(r, 2000));
-              resolve('victory');
-              return;
-            }
-          }
-
-          // After firing all guns, check if any ships flee
-          if (Math.random() * numShips < 0.4) {
-            const fleeing = Math.floor(Math.random() * (numShips / 3)) + 1;
-            numShips -= fleeing;
-            this.setLine(3, 0, `${fleeing} ran away, Taipan!`);
-            this.screen.render();
-            await new Promise(r => setTimeout(r, 2000));
-
-            // Update display for remaining ships
-            if (numShips <= 10) {
-              for (let i = 9; i >= 0; i--) {
-                if (numOnScreen > numShips && shipsOnScreen[i] > 0) {
-                  shipsOnScreen[i] = 0;
-                  numOnScreen--;
-                  const x = (i < 5) ? ((i + 1) * 10) : ((i - 4) * 10);
-                  const y = (i < 5) ? 6 : 12;
-                  this.clearLorcha(x, y);
-                }
-              }
-              if (numShips === numOnScreen) {
-                this.setLine(11, 62, ' ');
-              }
-            }
-          }
-
-          // Enemy return fire
-          if (numShips > 0) {
-            this.setLine(3, 0, "They're firing on us, Taipan!");
-            this.screen.render();
-            await new Promise(r => setTimeout(r, 2000));
-
-            // Flash screen effect
-            for (let i = 0; i < 3; i++) {
-              this.messageBox.setContent('*'.repeat(80).repeat(24));
-              this.screen.render();
-              await new Promise(r => setTimeout(r, 200));
-              this.messageBox.setContent(' '.repeat(80).repeat(24));
-              this.screen.render();
-              await new Promise(r => setTimeout(r, 200));
-            }
-
-            // Redraw battle state
-            for (let i = 0; i < 10; i++) {
-              if (shipsOnScreen[i] > 0) {
-                const x = (i < 5) ? ((i + 1) * 10) : ((i - 4) * 10);
-                const y = (i < 5) ? 6 : 12;
-                this.drawLorcha(x, y);
-              }
-            }
-
-            this.setLine(3, 0, "We've been hit, Taipan!!");
-            this.screen.render();
-            await new Promise(r => setTimeout(r, 2000));
-
-            // Calculate damage to player
-            const hitCount = Math.min(15, numShips);
-            const damageMultiplier = this.game.enemyDamage * hitCount * (Math.random() + 0.5);
-            this.game.damage += Math.floor(damageMultiplier);
-
-            // Check if a gun was hit
-            if (this.game.guns > 0 && 
-                (Math.random() < (this.game.damage / this.game.capacity) || 
-                 (this.game.damage / this.game.capacity) > 0.8)) {
-              this.game.guns--;
-              this.game.hold += 10;
-              this.setLine(3, 0, "The buggers hit a gun, Taipan!!");
-              this.screen.render();
-              await new Promise(r => setTimeout(r, 2000));
-            }
-
-            // Update battle stats after damage
-            this.showBattleStats(numShips, order);
-
-            // Reset and redraw battle display
-            this.messageBox.setContent('');
-            this.screen.render();
-
-            // Redraw battle stats
-            this.showBattleStats(numShips, 0);
-
-            // Redraw ships in two rows
-            for (let i = 0; i < 10; i++) {
-              if (shipsOnScreen[i] > 0) {
-                const x = (i < 5) ? ((i + 1) * 10) : ((i - 4) * 10);
-                const y = (i < 5) ? 6 : 12;
-                this.drawLorcha(x, y);
-              }
-            }
-
-            // Show remaining ships indicator if needed
-            if (numShips > numOnScreen) {
-              this.setLine(11, 62, '+');
-            }
-
-            // Check ship status
-            const status = Math.floor(100 - ((this.game.damage / this.game.capacity) * 100));
-            if (status <= 0) {
-              this.setLine(3, 0, "The ship's going down, Taipan!!");
-              this.screen.render();
-              await new Promise(r => setTimeout(r, 2000));
-              resolve('defeat');
-              return;
-            }
-
-            // Show ship status
-            this.setLine(3, 0, `Current seaworthiness: ${status}%`);
-            this.screen.render();
-            await new Promise(r => setTimeout(r, 2000));
-          }
-        }
-
-        // Continue battle if ships remain
-        if (numShips > 0) {
-          continue;
-        }
-        
-        // End battle
-        resolve('defeat');
-        return;
-      }
-    });
-  }
-
   setLine(lineNum, col, content) {
-    const lines = this.messageBox.getContent().split('\n');
-    while (lines.length <= lineNum) {
-      lines.push(' '.repeat(80));
-    }
-    lines[lineNum] = this.setLineContent(lines[lineNum], col, content);
-    this.messageBox.setContent(lines.join('\n'));
-  }
-
-  showBattleStats(ships, orders) {
-    let orderText = '';
-    switch(orders) {
-      case 1: orderText = 'Fight      '; break;
-      case 2: orderText = 'Run        '; break;
-      case 3: orderText = 'Throw Cargo'; break;
-      default: orderText = '          '; break;
-    }
-    
-    // Show ships count and orders at top
-    this.setLine(0, 0, `${ships.toString().padStart(4)} ship${ships === 1 ? '' : 's'} attacking, Taipan!`);
-    this.setLine(1, 0, `Your orders are to: ${orderText}`);
-    
-    // Show guns count in top right
-    this.setLine(0, 50, `|  We have`);
-    this.setLine(1, 50, `|  ${this.game.guns} ${this.game.guns === 1 ? 'gun' : 'guns'}`);
-    this.setLine(2, 50, `+---------`);
-    
-    this.screen.render();
+    this.move(lineNum, col);
+    this.printw(content);
+    this.refresh();
   }
 
   async showStorm() {
@@ -683,7 +205,6 @@ export class CaptainsReport {
     
     // Check for pirates
     let battleChance = Math.floor(Math.random() * 100);
-    //await this.showMessage(`bc: ${battleChance} bp: ${this.game.bp}`);
     if (battleChance < this.game.bp) {
       let num_ships = Math.floor(Math.random() * ((this.game.capacity / 10) + this.game.guns)) + 1;
       if (num_ships > 9999) {
@@ -698,7 +219,6 @@ export class CaptainsReport {
     
     // Check for storm
     let stormChance = Math.floor(Math.random() * 100);
-    //await this.showMessage(`sc: ${stormChance} sp: ${this.game.sp}`);
     if (stormChance < this.game.sp) {
       const stormResult = await this.showStorm();
       if (stormResult === 'sunk') {
@@ -713,5 +233,429 @@ export class CaptainsReport {
     
     this.hide();
     return 'continue';
+  }
+
+  // Draw a lorcha (ship) at specified coordinates
+  drawLorcha(x, y) {
+    this.move(y, x);
+    this.printw("-|-_|_  ");
+    this.move(y + 1, x);
+    this.printw("-|-_|_  ");
+    this.move(y + 2, x);
+    this.printw("_|__|__/");
+    this.move(y + 3, x);
+    this.printw("\\_____/ ");
+  }
+
+  // Clear a lorcha from specified coordinates
+  clearLorcha(x, y) {
+    this.move(y, x);
+    this.printw("        ");
+    this.move(y + 1, x);
+    this.printw("        ");
+    this.move(y + 2, x);
+    this.printw("        ");
+    this.move(y + 3, x);
+    this.printw("        ");
+  }
+
+  // Draw explosion effect
+  drawBlast(x, y) {
+    this.move(y, x);
+    this.printw("********");
+    this.move(y + 1, x);
+    this.printw("********");
+    this.move(y + 2, x);
+    this.printw("********");
+    this.move(y + 3, x);
+    this.printw("********");
+  }
+
+  // Animate ship sinking
+  async sinkLorcha(x, y) {
+    // Frame 1
+    this.move(y, x);
+    this.printw("        ");
+    this.move(y + 1, x);
+    this.printw("-|-_|_  ");
+    this.move(y + 2, x);
+    this.printw("-|-_|_  ");
+    this.move(y + 3, x);
+    this.printw("_|__|__/");
+    this.refresh();
+    await new Promise(r => setTimeout(r, 500));
+
+    // Frame 2
+    this.move(y + 1, x);
+    this.printw("        ");
+    this.move(y + 2, x);
+    this.printw("-|-_|_  ");
+    this.move(y + 3, x);
+    this.printw("-|-_|_  ");
+    this.refresh();
+    await new Promise(r => setTimeout(r, 500));
+
+    // Frame 3
+    this.move(y + 2, x);
+    this.printw("        ");
+    this.move(y + 3, x);
+    this.printw("-|-_|_  ");
+    this.refresh();
+    await new Promise(r => setTimeout(r, 500));
+
+    // Final frame
+    this.move(y + 3, x);
+    this.printw("        ");
+    this.refresh();
+    await new Promise(r => setTimeout(r, 500));
+  }
+
+  // Show battle statistics
+  showBattleStats(ships, orders) {
+    let orderText = '';
+    switch(orders) {
+      case 1: orderText = 'Fight      '; break;
+      case 2: orderText = 'Run        '; break;
+      case 3: orderText = 'Throw Cargo'; break;
+      default: orderText = '          '; break;
+    }
+
+    this.move(0, 0);
+    if (ships === 1) {
+      this.printw("   1 ship attacking, Taipan! \n");
+    } else {
+      this.printw(`${ships.toString().padStart(4)} ships attacking, Taipan!\n`);
+    }
+    this.printw(`Your orders are to: ${orderText}`);
+    
+    this.move(0, 50);
+    this.printw("|  We have");
+    this.move(1, 50);
+    this.printw(`|  ${this.game.guns} ${this.game.guns === 1 ? 'gun' : 'guns'}`);
+    this.move(2, 50);
+    this.printw("+---------");
+    this.move(16, 0);
+    this.refresh();
+  }
+
+  // Get player's battle order
+  async getPlayerOrder() {
+    return new Promise((resolve) => {
+      const handleInput = (ch, key) => {
+        let order = 0;
+        if (key.name === 'f' || key.name === 'F') order = 1;
+        else if (key.name === 'r' || key.name === 'R') order = 2;
+        else if (key.name === 't' || key.name === 'T') order = 3;
+        
+        if (order > 0) {
+          this.screen.removeListener('keypress', handleInput);
+          resolve(order);
+        }
+      };
+      
+      this.screen.on('keypress', handleInput);
+    });
+  }
+
+  // Main battle sequence
+  async showBattle(numShips) {
+    return new Promise(async (resolve) => {
+      // Initialize battle state
+      let shipsOnScreen = Array(10).fill(0);
+      let numOnScreen = 0;
+      let escapeBonus = 0;
+      const time = ((this.game.year - 1860) * 12) + this.game.month;
+      
+      // Calculate potential booty
+      this.game.booty = Math.floor((time / 4 * 1000 * numShips) + Math.random() * 1000 + 250);
+
+      // Clear screen and show initial stats
+      this.clear();
+      this.showBattleStats(numShips, 0);
+
+      while (numShips > 0) {
+        // Check ship status
+        const status = Math.floor(100 - ((this.game.damage || 0) / Math.max(1, this.game.capacity) * 100));
+        if (status <= 0) {
+          return resolve('defeat');
+        }
+
+        this.move(3, 0);
+        this.clrtoeol();
+        this.printw(`Current seaworthiness: ${status}%`);
+        this.refresh();
+
+        // Draw ships
+        let x = 10;
+        let y = 6;
+        for (let i = 0; i <= 9; i++) {
+          if (i === 5) {
+            x = 10;
+            y = 12;
+          }
+
+          if (numShips > numOnScreen) {
+            if (shipsOnScreen[i] === 0) {
+              await new Promise(r => setTimeout(r, 100));
+              shipsOnScreen[i] = Math.floor((this.game.ec * Math.random()) + 20);
+              this.drawLorcha(x, y);
+              numOnScreen++;
+              this.refresh();
+            }
+            x += 10;
+          }
+        }
+
+        // Show + indicator if more ships
+        this.move(11, 62);
+        this.printw(numShips > numOnScreen ? "+" : " ");
+
+        // Get player order
+        this.move(16, 0);
+        this.printw("\nTaipan, what shall we do??    (f=Fight, r=Run, t=Throw cargo)");
+        this.refresh();
+        
+        const order = await this.getPlayerOrder();
+        
+        // Handle player orders
+        switch (order) {
+          case 1: // Fight
+            this.showBattleStats(numShips, order);
+            
+            // Player attacks
+            let hits = 0;
+            for (let g = 0; g < this.game.guns; g++) {
+              // Find valid target
+              let targetFound = false;
+              let targetIndex;
+              for (let tries = 0; tries < 10 && !targetFound; tries++) {
+                targetIndex = Math.floor(Math.random() * 10);
+                if (shipsOnScreen[targetIndex] > 0) {
+                  targetFound = true;
+                }
+              }
+              
+              if (targetFound) {
+                const x = 10 + ((targetIndex % 5) * 10);
+                const y = 6 + (Math.floor(targetIndex / 5) * 6);
+                
+                // Show blast animation
+                this.drawBlast(x, y);
+                this.refresh();
+                await new Promise(r => setTimeout(r, 300));
+                
+                // Calculate hit
+                if (Math.random() < 0.7) {  // 70% hit chance
+                  hits++;
+                  shipsOnScreen[targetIndex] -= Math.floor(Math.random() * 20) + 10;
+                  
+                  // Check if ship is destroyed
+                  if (shipsOnScreen[targetIndex] <= 0) {
+                    await this.sinkLorcha(x, y);
+                    shipsOnScreen[targetIndex] = 0;
+                    numShips--;
+                    numOnScreen--;
+                    this.move(4, 0);
+                    this.clrtoeol();
+                    this.printw("We sunk one, Taipan!!");
+                  } else {
+                    // Redraw damaged ship
+                    this.drawLorcha(x, y);
+                    this.move(4, 0);
+                    this.clrtoeol();
+                    this.printw("We hit them, Taipan!!");
+                  }
+                } else {
+                  // Miss
+                  this.drawLorcha(x, y);
+                  this.move(4, 0);
+                  this.clrtoeol();
+                  this.printw("We missed, Taipan.");
+                }
+                this.refresh();
+                await new Promise(r => setTimeout(r, 500));
+              }
+            }
+            break;
+            
+          case 2: // Run
+            this.showBattleStats(numShips, order);
+            const escapeChance = 0.4 + (escapeBonus / 100) + (this.game.guns / 100);
+            
+            if (Math.random() < escapeChance) {
+              await this.showMessage("We got away, Taipan!!");
+              return resolve('escaped');
+            } else {
+              this.move(4, 0);
+              this.clrtoeol();
+              this.printw("Couldn't get away, Taipan!");
+              this.refresh();
+              await new Promise(r => setTimeout(r, 1000));
+            }
+            break;
+            
+          case 3: // Throw cargo
+            this.showBattleStats(numShips, order);
+            const throwResult = await this.showThrowCargo();
+            escapeBonus += throwResult;
+            break;
+        }
+        
+        // Enemy return fire if any ships remain
+        if (numShips > 0) {
+          this.move(4, 0);
+          this.clrtoeol();
+          this.printw("They're firing back, Taipan!!");
+          this.refresh();
+          await new Promise(r => setTimeout(r, 1000));
+          
+          // Each ship has a chance to hit
+          for (let i = 0; i < numOnScreen; i++) {
+            if (shipsOnScreen[i] > 0) {
+              if (Math.random() < 0.3) {  // 30% hit chance
+                const damage = Math.floor(Math.random() * 5) + 1;
+                this.game.damage += damage;
+                
+                // Show hit message
+                this.move(4, 0);
+                this.clrtoeol();
+                this.printw(`They hit us! Damage: ${damage}`);
+                this.refresh();
+                await new Promise(r => setTimeout(r, 500));
+              }
+            }
+          }
+          
+          // Check if we're still floating
+          const finalStatus = Math.floor(100 - ((this.game.damage || 0) / Math.max(1, this.game.capacity) * 100));
+          if (finalStatus <= 0) {
+            await this.showMessage("We're going down, Taipan!!");
+            return resolve('defeat');
+          }
+          
+          await new Promise(r => setTimeout(r, 1000));
+        }
+      }
+      
+      // Victory if all ships destroyed
+      await this.showMessage("We beat them all, Taipan!!");
+      this.game.cash += this.game.booty;
+      await this.showMessage(`We got ${this.game.booty} in booty!`);
+      resolve('victory');
+    });
+  }
+
+  async showThrowCargo() {
+    return new Promise(async (resolve) => {
+      // Show current cargo amounts
+      this.clear();
+      this.move(0, 0);
+      this.printw("Current cargo:\n\n");
+      this.printw(`Opium:   ${this.game.opium}\n`);
+      this.printw(`Silk:    ${this.game.silk}\n`);
+      this.printw(`Arms:    ${this.game.arms}\n`);
+      this.printw(`General: ${this.game.general}\n\n`);
+      this.printw("What do you want to throw overboard?\n");
+      this.printw("(O=Opium, S=Silk, A=Arms, G=General, *=All)\n");
+      this.refresh();
+
+      // Get cargo type choice
+      const cargoChoice = await new Promise((resolve) => {
+        const handleInput = (ch, key) => {
+          let choice = key.name.toLowerCase();
+          if (['o', 's', 'a', 'g', '*'].includes(choice)) {
+            this.screen.removeListener('keypress', handleInput);
+            resolve(choice);
+          }
+        };
+        this.screen.on('keypress', handleInput);
+      });
+
+      // Handle throwing all cargo
+      if (cargoChoice === '*') {
+        const totalCargo = this.game.opium + this.game.silk + this.game.arms + this.game.general;
+        this.game.opium = 0;
+        this.game.silk = 0;
+        this.game.arms = 0;
+        this.game.general = 0;
+        await this.showMessage("All cargo thrown overboard, Taipan!");
+        return resolve(Math.floor(totalCargo / 10)); // Return escape bonus
+      }
+
+      // Get amount to throw
+      let maxAmount;
+      let cargoType;
+      switch (cargoChoice) {
+        case 'o':
+          maxAmount = this.game.opium;
+          cargoType = 'opium';
+          break;
+        case 's':
+          maxAmount = this.game.silk;
+          cargoType = 'silk';
+          break;
+        case 'a':
+          maxAmount = this.game.arms;
+          cargoType = 'arms';
+          break;
+        case 'g':
+          maxAmount = this.game.general;
+          cargoType = 'general';
+          break;
+      }
+
+      if (maxAmount === 0) {
+        await this.showMessage(`No ${cargoType} to throw, Taipan!`);
+        return resolve(0);
+      }
+
+      this.move(10, 0);
+      this.clrtoeol();
+      this.printw(`How much ${cargoType}? `);
+      this.refresh();
+
+      // Get amount from player
+      let amount = await new Promise((resolve) => {
+        let input = '';
+        const handleInput = (ch, key) => {
+          if (key.name === 'return') {
+            this.screen.removeListener('keypress', handleInput);
+            resolve(parseInt(input) || 0);
+          } else if (key.name === 'backspace') {
+            input = input.slice(0, -1);
+            this.move(10, `How much ${cargoType}? `.length);
+            this.clrtoeol();
+            this.printw(input);
+            this.refresh();
+          } else if (/[0-9]/.test(ch)) {
+            input += ch;
+            this.printw(ch);
+            this.refresh();
+          }
+        };
+        this.screen.on('keypress', handleInput);
+      });
+
+      // Validate amount
+      if (amount <= 0) {
+        await this.showMessage("Must throw something, Taipan!");
+        return resolve(0);
+      }
+      if (amount > maxAmount) {
+        await this.showMessage(`Only have ${maxAmount} ${cargoType}, Taipan!`);
+        return resolve(0);
+      }
+
+      // Update cargo and return escape bonus
+      switch (cargoChoice) {
+        case 'o': this.game.opium -= amount; break;
+        case 's': this.game.silk -= amount; break;
+        case 'a': this.game.arms -= amount; break;
+        case 'g': this.game.general -= amount; break;
+      }
+
+      await this.showMessage(`${amount} ${cargoType} thrown overboard, Taipan!`);
+      return resolve(Math.floor(amount / 10));
+    });
   }
 } 
