@@ -519,7 +519,7 @@ You have: ${this.game.formatNumber(this.game.bank)} in the bank`);
     });
   }
 
-  showTransfer() {
+  async showTransfer() {
     return new Promise(async (resolve) => {
       // Check if there's any cargo to transfer
       const hasCargo = this.game.holdStock.some(x => x > 0) || this.game.warehouseStock.some(x => x > 0);
@@ -610,6 +610,106 @@ You have: ${this.game.formatNumber(this.game.warehouseStock[i])} in warehouse`);
       }
       
       resolve();
+    });
+  }
+
+  async showMcHenry(totalRepairCost) {
+    return new Promise(async (resolve) => {
+      this.mainBox.setContent(`
+Comprador's Report
+
+Taipan, Mc Henry from the Hong Kong
+Shipyards has arrived!!  He says, "I see
+ye've a wee bit of damage to yer ship.
+Will ye be wanting repairs? (Y/N)"`);
+      
+      this.screen.render();
+
+      const handler = async (ch, key) => {
+        let choice = key.name.toLowerCase();
+        if (choice === 'y' || choice === 'n') {
+          this.screen.removeListener('keypress', handler);
+
+          if (choice === 'n') {
+            resolve();
+            return;
+          }
+
+          // Calculate damage percentage and time-based repair cost
+          const percent = Math.floor((this.game.damage / this.game.capacity) * 100);
+          const time = ((this.game.year - 1860) * 12) + this.game.month;
+          const br = Math.floor((((60 * (time + 3) / 4) * Math.random()) + 25 * (time + 3) / 4) * this.game.capacity / 50);
+          const repair_price = (br * this.game.damage) + 1;
+
+          this.mainBox.setContent(`
+Comprador's Report
+
+Och, 'tis a pity to be ${percent}% damaged.
+We can fix yer whole ship for ${this.game.formatNumber(repair_price)},
+or make partial repairs if you wish.
+How much will ye spend? `);
+
+          this.setSubmitHandler(async (value) => {
+            let amount = parseInt(value);
+            if (!isNaN(amount) && amount > 0) {
+              if (amount > this.game.cash) {
+                // Offer Wu's assistance
+                this.mainBox.setContent(`
+Comprador's Report
+
+Ye don't have enough cash, Taipan!
+Shall I ask Elder Brother Wu to pay
+the difference? (Y/N)`);
+                
+                this.screen.render();
+
+                const wuHandler = async (ch, key) => {
+                  let wuChoice = key.name.toLowerCase();
+                  if (wuChoice === 'y' || wuChoice === 'n') {
+                    this.screen.removeListener('keypress', wuHandler);
+
+                    if (wuChoice === 'y') {
+                      const diff = amount - this.game.cash;
+                      this.game.debt += diff;
+                      this.game.cash = 0;
+
+                      // Calculate repairs
+                      const repairAmount = Math.floor((amount / br) + 0.5);
+                      this.game.damage = Math.max(0, this.game.damage - repairAmount);
+
+                      await this.showMessage("Elder Brother has given McHenry the difference between what he wanted and your cash on hand and added the same amount to your debt.");
+                      resolve();
+                    } else {
+                      this.game.cash = 0;
+                      await this.showMessage("Very well. Elder Brother Wu will not pay McHenry the difference. I would be very wary of pirates if I were you, Taipan.");
+                      resolve();
+                    }
+                  }
+                };
+
+                this.screen.on('keypress', wuHandler);
+              } else if (amount <= this.game.cash) {
+                this.game.cash -= amount;
+                // Calculate repairs based on amount spent
+                const repairAmount = Math.floor((amount / br) + 0.5);
+                this.game.damage = Math.max(0, this.game.damage - repairAmount);
+                resolve();
+              }
+            } else {
+              await this.showMessage("McHenry does not work for free, Taipan!");
+              this.setSubmitHandler(null);
+              this.inputBox.hide();
+              resolve();
+            }
+          });
+
+          this.inputBox.show();
+          this.inputBox.focus();
+          this.screen.render();
+        }
+      };
+
+      this.screen.on('keypress', handler);
     });
   }
 
@@ -791,6 +891,151 @@ He won't loan you so much, Taipan!`);
 
       this.screen.on('keypress', handleInitialChoice);
       this.screen.render();
+    });
+  }
+
+  showLiYuen() {
+    return new Promise(async (resolve) => {
+      // Calculate extortion amount based on time and cash
+      const time = ((this.game.year - 1860) * 12) + this.game.month;
+      let amount = 0;
+      
+      if (time > 12) {
+        // After first year, increase base extortion amount
+        const j = Math.floor(Math.random() * (1000 * time) + (1000 * time));
+        amount = Math.floor((this.game.cash / 1) * Math.random() + j);
+      } else {
+        // First year calculation
+        amount = Math.floor((this.game.cash / 1.8) * Math.random());
+      }
+
+      this.mainBox.setContent(`
+Comprador's Report
+
+Li Yuen asks ${this.game.formatNumber(amount)} in donation
+to the temple of Tin Hau, the Sea
+Goddess.  Will you pay?`);
+      
+      this.screen.render();
+
+      const handleChoice = async (ch, key) => {
+        if (key.name === 'y' || key.name === 'Y') {
+          this.screen.removeListener('keypress', handleChoice);
+          
+          if (amount <= this.game.cash) {
+            this.game.cash -= amount;
+            this.game.li = 1;
+            resolve();
+          } else {
+            // Not enough cash - ask about Wu's help
+            this.mainBox.setContent(`
+Comprador's Report
+
+Taipan, you do not have enough cash!!
+
+Do you want Elder Brother Wu to make up
+the difference for you?`);
+            
+            this.screen.render();
+
+            const handleWuChoice = async (ch, key) => {
+              if (key.name === 'y' || key.name === 'Y') {
+                this.screen.removeListener('keypress', handleWuChoice);
+                const diff = amount - this.game.cash;
+                this.game.debt += diff;
+                this.game.cash = 0;
+                this.game.li = 1;
+
+                this.mainBox.setContent(`
+Comprador's Report
+
+Elder Brother has given Li Yuen the
+difference between what he wanted and
+your cash on hand and added the same
+amount to your debt.`);
+                
+                this.screen.render();
+                setTimeout(() => resolve(), 5000);
+              } else if (key.name === 'n' || key.name === 'N') {
+                this.screen.removeListener('keypress', handleWuChoice);
+                this.game.cash = 0;
+
+                this.mainBox.setContent(`
+Comprador's Report
+
+Very well. Elder Brother Wu will not pay
+Li Yuen the difference. I would be very
+wary of pirates if I were you, Taipan.`);
+                
+                this.screen.render();
+                setTimeout(() => resolve(), 5000);
+              }
+            };
+
+            this.screen.on('keypress', handleWuChoice);
+          }
+        } else if (key.name === 'n' || key.name === 'N') {
+          this.screen.removeListener('keypress', handleChoice);
+          resolve();
+        }
+      };
+
+      this.screen.on('keypress', handleChoice);
+    });
+  }
+
+  showLiYuenLieutenant() {
+    return new Promise((resolve) => {
+      this.mainBox.setContent(`
+Comprador's Report
+
+Li Yuen has sent a Lieutenant,
+Taipan. He says his admiral wishes
+to see you in Hong Kong, posthaste!`);
+      
+      this.screen.render();
+      setTimeout(() => resolve(), 3000);
+    });
+  }
+
+  showWarehouseTheft() {
+    return new Promise((resolve) => {
+      this.mainBox.setContent(`
+Comprador's Report
+
+Messenger reports large theft
+from warehouse, Taipan.`);
+      
+      this.screen.render();
+      setTimeout(() => resolve(), 5000);
+    });
+  }
+
+  showOpiumSeizure(fine) {
+    return new Promise((resolve) => {
+      this.mainBox.setContent(`
+Comprador's Report
+
+Bad Joss!!
+The local authorities have seized your
+${fine > 0 ? `Opium cargo and have also fined you\n${this.game.formatNumber(fine)}, Taipan!` : 'Opium cargo, Taipan!'}`);
+      
+      this.screen.render();
+      setTimeout(() => resolve(), 5000);
+    });
+  }
+
+  showRobbery(stolenAmount) {
+    return new Promise((resolve) => {
+      this.mainBox.setContent(`
+Comprador's Report
+
+Bad Joss!!
+You've been beaten up and
+robbed of ${this.game.formatNumber(stolenAmount)} in cash, Taipan!!`);
+      
+      this.screen.render();
+      setTimeout(() => resolve(), 5000);
     });
   }
 } 

@@ -1,4 +1,5 @@
 import blessed from 'blessed';
+import { GENERIC, LI_YUEN } from '../state.js';
 
 export class CaptainsReport {
   constructor(screen, game) {
@@ -203,6 +204,14 @@ export class CaptainsReport {
   async handleTravelSequence(destination) {
     this.show();
     
+    // Check if ship is overloaded
+    const totalCargo = this.game.opium + this.game.silk + this.game.arms + this.game.general;
+    if (totalCargo > this.game.capacity) {
+      await this.showMessage("Ship overloaded - cannot depart!");
+      this.hide();
+      return 'overloaded';
+    }
+    
     // Check for pirates
     let battleChance = Math.floor(Math.random() * 100);
     if (battleChance < this.game.bp) {
@@ -233,6 +242,17 @@ export class CaptainsReport {
     await this.showArrival(destination);
     await this.handleTravel(destination);
     
+    // Random chance for Li Yuen's pirates during travel
+    if (this.game.li === 0 && Math.random() < 0.25) {
+      const liShips = Math.floor(Math.random() * ((this.game.capacity / 5) + this.game.guns) + 5);
+      await this.showMessage(`${liShips} ships of Li Yuen's pirate\nfleet, Taipan!!`);
+      await new Promise(r => setTimeout(r, 3000));
+      const result = await this.handleBattle(liShips, LI_YUEN);
+      if (result === 'game_over') {
+        return result;
+      }
+    }
+
     this.hide();
     return 'continue';
   }
@@ -659,5 +679,26 @@ export class CaptainsReport {
       await this.showMessage(`${amount} ${cargoType} thrown overboard, Taipan!`);
       return resolve(Math.floor(amount / 10));
     });
+  }
+
+  async handleBattle(numShips, type = GENERIC) {
+    // Random chance for Li Yuen's pirates to interrupt battle
+    if (type === GENERIC && Math.random() % (4 + (8 * this.game.li)) === 0) {
+      await this.showMessage("Li Yuen's pirates, Taipan!!");
+      await new Promise(r => setTimeout(r, 3000));
+
+      if (this.game.li > 0) {
+        await this.showMessage("Good joss!! They let us be!!");
+        await new Promise(r => setTimeout(r, 3000));
+        return 'continue';
+      } else {
+        const liShips = Math.floor(Math.random() * ((this.game.capacity / 5) + this.game.guns) + 5);
+        await this.showMessage(`${liShips} ships of Li Yuen's pirate\nfleet, Taipan!!`);
+        await new Promise(r => setTimeout(r, 3000));
+        return await this.handleBattle(liShips, LI_YUEN);
+      }
+    }
+
+    // ... existing code ...
   }
 } 

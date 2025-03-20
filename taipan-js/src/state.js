@@ -103,7 +103,7 @@ export class GameState {
     this.debt = 5000;
     this.hold = 60;
     this.guns = 0;
-    this.li = 0;
+    this.li = 0;  // Start hostile with Li Yuen
     this.bp = 10;
     this.sp = 10;
   }
@@ -113,8 +113,8 @@ export class GameState {
     this.debt = 0;
     this.hold = 10;
     this.guns = 5;
-    this.li = 1;
-    this.bp = 95;
+    this.li = 1;  // Start friendly with Li Yuen
+    this.bp = 7;
     this.sp = 10;
   }
 } 
