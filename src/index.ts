@@ -10,7 +10,7 @@ import { TravelService } from './services/TravelService';
 async function main() {
     // Create service instances
     const ui = new ConsoleUIService();
-    const battle = new BattleService();
+    const battle = new BattleService(ui);
     const banking = new BankingService();
     const events = new EventService();
     const travel = new TravelService();

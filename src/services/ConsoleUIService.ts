@@ -1,4 +1,4 @@
-import { GameState, GameEvent, EventResult, GameAction, Location, CargoType, EventType } from '../types';
+import { GameState, GameEvent, EventResult, GameAction, Location, CargoType, EventType, ShipCondition, Month, InitialGameConditions, CASH_START_CONDITIONS, GUNS_START_CONDITIONS } from '../types';
 import * as readline from 'readline';
 
 export class ConsoleUIService {
@@ -51,13 +51,32 @@ export class ConsoleUIService {
         console.clear();
         console.log(`=== ${state.firmName} ===`);
         console.log(`Location: ${state.location}`);
-        console.log(`Date: ${state.month}/1/${state.year}`);
+        // Convert month number (1-12) to Month enum value
+        const monthName = Month[Object.keys(Month)[state.month - 1] as keyof typeof Month];
+        console.log(`Date: 15 ${monthName} ${state.year}`);
         console.log(`Cash: $${state.cash}`);
         console.log(`Bank: $${state.bank}`);
         console.log(`Debt: $${state.debt}`);
         console.log(`Ship Capacity: ${state.capacity}`);
         console.log(`Guns: ${state.guns}`);
-        console.log(`Damage: ${state.damage}%`);
+
+        // Get ship condition based on damage percentage
+        let condition: ShipCondition;
+        if (state.damage >= 90) {
+            condition = ShipCondition.CRITICAL;
+        } else if (state.damage >= 70) {
+            condition = ShipCondition.POOR;
+        } else if (state.damage >= 50) {
+            condition = ShipCondition.FAIR;
+        } else if (state.damage >= 30) {
+            condition = ShipCondition.GOOD;
+        } else if (state.damage >= 10) {
+            condition = ShipCondition.PRIME;
+        } else {
+            condition = ShipCondition.PERFECT;
+        }
+
+        console.log(`Ship Condition: ${condition} (${state.damage}% damage)`);
         console.log('\nCargo:');
         Object.entries(state.inventory).forEach(([cargo, amount]) => {
             console.log(`${cargo}: ${amount}`);
@@ -218,23 +237,54 @@ export class ConsoleUIService {
     }
 
     async getPortMenuChoice(): Promise<GameAction> {
-        console.log('\nActions:');
-        console.log('1. Buy');
-        console.log('2. Sell');
-        console.log('3. Bank');
-        console.log('4. Warehouse');
-        console.log('5. Travel');
-        if (this.state?.location === Location.HONG_KONG) {
-            console.log('6. Visit Wu');
-            console.log('7. Quit');
-            console.log('8. Retire');
-        } else {
-            console.log('7. Quit');
-            console.log('8. Retire');
-        }
+        // First display current prices like in C code
+        console.log('\nComprador\'s Report\n');
+        console.log('Taipan, present prices per unit here are');
+        console.log(`   Opium: ${this.state?.prices.opium}          Silk: ${this.state?.prices.silk}`);
+        console.log(`   Arms: ${this.state?.prices.arms}           General: ${this.state?.prices.general}`);
 
-        const choice = parseInt(await this.question('Choose action: '));
-        return choice;
+        while (true) {
+            if (this.state?.location === Location.HONG_KONG) {
+                const netWorth = (this.state.cash + this.state.bank);
+                if (netWorth >= 1000000) {
+                    // Hong Kong with >= 1M: Buy, Sell, Visit bank, Transfer cargo, Wheedle Wu, Quit trading, or Retire
+                    console.log('Shall I Buy, Sell, Visit bank, Transfer');
+                    console.log('cargo, Wheedle Wu, Quit trading, or Retire? ');
+                    const choice = (await this.question('')).toUpperCase();
+                    switch (choice) {
+                        case 'B': return GameAction.BUY;
+                        case 'S': return GameAction.SELL;
+                        case 'V': return GameAction.BANK;
+                        case 'T': return GameAction.WAREHOUSE;
+                        case 'W': return GameAction.VISIT_WU;
+                        case 'Q': return GameAction.TRAVEL;
+                        case 'R': return GameAction.RETIRE;
+                    }
+                } else {
+                    // Hong Kong with < 1M: Buy, Sell, Visit bank, Transfer cargo, Wheedle Wu, or Quit trading
+                    console.log('Shall I Buy, Sell, Visit bank, Transfer');
+                    console.log('cargo, Wheedle Wu, or Quit trading? ');
+                    const choice = (await this.question('')).toUpperCase();
+                    switch (choice) {
+                        case 'B': return GameAction.BUY;
+                        case 'S': return GameAction.SELL;
+                        case 'V': return GameAction.BANK;
+                        case 'T': return GameAction.WAREHOUSE;
+                        case 'W': return GameAction.VISIT_WU;
+                        case 'Q': return GameAction.TRAVEL;
+                    }
+                }
+            } else {
+                // Other ports: Buy, Sell, or Quit trading only
+                console.log('Shall I Buy, Sell, or Quit trading? ');
+                const choice = (await this.question('')).toUpperCase();
+                switch (choice) {
+                    case 'B': return GameAction.BUY;
+                    case 'S': return GameAction.SELL;
+                    case 'Q': return GameAction.TRAVEL;
+                }
+            }
+        }
     }
 
     async getTravelDestination(): Promise<Location> {
@@ -268,7 +318,7 @@ export class ConsoleUIService {
         });
     }
 
-    private async getNumber(prompt: string): Promise<number> {
+    async getNumber(prompt: string): Promise<number> {
         const answer = await this.question(prompt);
         if (answer.toLowerCase() === 'a') {
             return -1; // Special case for 'all' like in original game
@@ -277,7 +327,7 @@ export class ConsoleUIService {
         return isNaN(num) ? 0 : num;
     }
 
-    private async getYesNo(prompt: string): Promise<boolean> {
+    async getYesNo(prompt: string): Promise<boolean> {
         const answer = await this.question(`${prompt} (y/n): `);
         return answer.toLowerCase().startsWith('y');
     }
@@ -286,7 +336,7 @@ export class ConsoleUIService {
         await this.question('Press Enter to continue...');
     }
 
-    async getCashOrGunsChoice(): Promise<'cash' | 'guns'> {
+    async getCashOrGunsChoice(): Promise<InitialGameConditions> {
         console.clear();
         console.log("\n");
         console.log("Do you want to start . . .\n");
@@ -297,8 +347,8 @@ export class ConsoleUIService {
         
         while (true) {
             const choice = await this.question("          ?");
-            if (choice === '1') return 'cash';
-            if (choice === '2') return 'guns';
+            if (choice === '1') return CASH_START_CONDITIONS;
+            if (choice === '2') return GUNS_START_CONDITIONS;
             console.log("Please enter 1 or 2");
         }
     }
@@ -309,5 +359,17 @@ export class ConsoleUIService {
     
     async displayEventOutcome(event: GameEvent, result: EventResult): Promise<void> {
         return this.displayEventResult(event, result);
+    }
+
+    async getBattleChoice(): Promise<string> {
+        console.log('\nTaipan, what shall we do?');
+        console.log('(F)ight, (R)un, or (T)hrow cargo? ');
+        
+        while (true) {
+            const choice = (await this.question('')).toUpperCase();
+            if (['F', 'R', 'T'].includes(choice)) {
+                return choice;
+            }
+        }
     }
 } 

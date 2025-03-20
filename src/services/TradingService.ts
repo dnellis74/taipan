@@ -122,7 +122,9 @@ export class TradingService {
             return;
         }
 
-        const price = this.getCargoPrice(state.location, cargoType);
+        // Use cached price from state instead of generating new one
+        const stateProp = this.getCargoStateProp(cargoType);
+        const price = state.prices[stateProp];
         const totalValue = price * amount;
 
         // Update state
@@ -146,7 +148,7 @@ export class TradingService {
     }
 
     // Helper to convert CargoType to state property name
-    private getCargoStateProp(cargo: CargoType): keyof GameState['prices'] {
+    getCargoStateProp(cargo: CargoType): keyof GameState['prices'] {
         switch(cargo) {
             case CargoType.OPIUM: return 'opium';
             case CargoType.SILK: return 'silk';

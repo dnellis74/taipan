@@ -58,8 +58,11 @@ export class EventService {
 
         // Only check for pirates if at sea
         if (state.location === Location.AT_SEA) {
-            // Random hostile ships (based on capacity and guns like original)
-            const numShips = Math.floor(Math.random() * ((state.capacity / 10) + state.guns)) + 1;
+            // Calculate hostile ships like C code: (capacity/50 + guns/4 + 3) * random(0.5 to 1.5)
+            const baseShips = Math.floor(state.capacity/50 + state.guns/4 + 3);
+            const randomMultiplier = 0.5 + Math.random();
+            const numShips = Math.max(1, Math.floor(baseShips * randomMultiplier));
+            
             return {
                 type: EventType.PIRATES,
                 description: `${numShips} hostile ships approaching, Taipan!`,

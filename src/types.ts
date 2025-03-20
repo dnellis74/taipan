@@ -40,6 +40,7 @@ export interface GameState {
     wuBailout: number;  // Number of times Wu has bailed out the player
     enemyHealth: number;
     enemyDamage: number;
+    battleProbability: number;  // bp in C code - affects chance of pirate encounters
     prices: {
         general: number;
         arms: number;
@@ -56,15 +57,15 @@ export interface GameState {
 
 // Game actions
 export enum GameAction {
-    NONE = 0,
-    BUY = 1,
-    SELL = 2,
-    BANK = 3,
-    WAREHOUSE = 4,
-    TRAVEL = 5,
-    VISIT_WU = 6,
-    QUIT = 7,
-    RETIRE = 8
+    NONE = '',
+    BUY = 'B',
+    SELL = 'S',
+    BANK = 'V',  // V for Visit bank like original
+    WAREHOUSE = 'T',  // T for Transfer cargo like original
+    TRAVEL = 'Q',  // Q for Quit port (travel) like original
+    VISIT_WU = 'W',  // W for Wheedle Wu like original
+    QUIT = 'X',  // X for eXit game (different from Q which was for travel)
+    RETIRE = 'R'
 }
 
 // Game options
@@ -138,4 +139,76 @@ export interface GameEvent {
     description: string;
     requiresUserInput: boolean;
     data: EventData;
+}
+
+export enum ShipCondition {
+    CRITICAL = 'Critical',
+    POOR = '  Poor',
+    FAIR = '  Fair',
+    GOOD = '  Good',
+    PRIME = ' Prime',
+    PERFECT = 'Perfect'
+}
+
+export enum Month {
+    JAN = 'Jan',
+    FEB = 'Feb',
+    MAR = 'Mar',
+    APR = 'Apr',
+    MAY = 'May',
+    JUN = 'Jun',
+    JUL = 'Jul',
+    AUG = 'Aug',
+    SEP = 'Sep',
+    OCT = 'Oct',
+    NOV = 'Nov',
+    DEC = 'Dec'
+}
+
+// Initial game conditions based on player choice
+export interface InitialGameConditions {
+    cash: number;
+    debt: number;
+    hold: number;
+    guns: number;
+    liYuenStatus: boolean;  // This is 'li' in the C code
+    battleProbability: number;  // This is 'bp' in the C code
+}
+
+export const CASH_START_CONDITIONS: InitialGameConditions = {
+    cash: 400,
+    debt: 5000,
+    hold: 60,
+    guns: 0,
+    liYuenStatus: false,  // li = 0
+    battleProbability: 10  // bp = 10
+};
+
+export const GUNS_START_CONDITIONS: InitialGameConditions = {
+    cash: 0,
+    debt: 0,
+    hold: 10,
+    guns: 5,
+    liYuenStatus: true,  // li = 1
+    battleProbability: 7  // bp = 7
+};
+
+export enum BattleResult {
+    NOT_FINISHED = 0,
+    WON = 1,
+    FLED = 2,
+    LOST = 3,
+    INTERRUPTED = 4
+}
+
+export enum BattleOrder {
+    NONE = 0,
+    FIGHT = 1,
+    RUN = 2,
+    THROW_CARGO = 3
+}
+
+export enum PirateType {
+    GENERIC = 1,
+    LI_YUEN = 2
 } 
