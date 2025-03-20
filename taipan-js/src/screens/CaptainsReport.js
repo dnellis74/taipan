@@ -215,6 +215,8 @@ export class CaptainsReport {
         this.hide();
         return 'game_over';
       }
+      // Add delay after battle before continuing
+      await new Promise(r => setTimeout(r, 1000));
     }
     
     // Check for storm
