@@ -114,7 +114,7 @@ export class GameState {
     this.hold = 10;
     this.guns = 5;
     this.li = 1;
-    this.bp = 7;
+    this.bp = 95;
     this.sp = 10;
   }
 } 
