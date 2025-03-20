@@ -1,18 +1,7 @@
 import { GameState, Location, CargoType } from '../types';
 import { UIService } from './UIService';
 
-export interface TradingService {
-    getCargoPrice(location: Location, cargo: CargoType): number;
-    canBuy(state: GameState, cargo: CargoType, amount: number): boolean;
-    canSell(state: GameState, cargo: CargoType, amount: number): boolean;
-    buy(state: GameState, cargo: CargoType, amount: number): void;
-    sell(state: GameState, cargo: CargoType, amount: number): void;
-    getAvailableSpace(state: GameState): number;
-    getCargoAmount(state: GameState, cargo: CargoType): number;
-    updatePrices(state: GameState, isNewPort: boolean): Promise<void>;
-}
-
-export class SimpleTradingService implements TradingService {
+export class TradingService {
     constructor(private ui: UIService) {}
 
     // Base prices for each cargo type at each port, matching original game's base_price array

@@ -1,13 +1,6 @@
 import { GameState, Location } from '../types';
 
-export interface TravelService {
-    calculateDistance(from: Location, to: Location): number;
-    calculateTravelCost(from: Location, to: Location): number;
-    canTravelTo(state: GameState, destination: Location): boolean;
-    travel(state: GameState, destination: Location): void;
-}
-
-export class SimpleTravelService implements TravelService {
+export class TravelService {
     // Distance matrix between ports (for pirate encounter calculations)
     private readonly distances: { [key: string]: number } = {
         [`${Location.HONG_KONG}-${Location.SHANGHAI}`]: 2,
@@ -49,18 +42,14 @@ export class SimpleTravelService implements TravelService {
     canTravelTo(state: GameState, destination: Location): boolean {
         // Can't travel to current location
         if (state.location === destination) return false;
-
-        // Can't travel with critical damage
-        if (state.damage >= 90) return false;
-
         return true;
     }
 
     travel(state: GameState, destination: Location): void {
-        // First set location to AT_SEA to allow for pirate encounters
-        state.location = Location.AT_SEA;
+        if (!this.canTravelTo(state, destination)) return;
         
-        // The actual destination will be set after sea events are handled
+        // Set next destination and put ship at sea
         state.nextDestination = destination;
+        state.location = Location.AT_SEA;
     }
 } 
