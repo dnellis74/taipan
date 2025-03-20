@@ -83,7 +83,16 @@ async function startGame() {
   // Main game loop
   while (isPlaying) {
     // Show current port status
-    screenHandler.showPortStats();
+    await screenHandler.showPortStats();
+
+    // Random chance for ship or gun offers (25% chance)
+    if (Math.random() < 0.25) {
+      if (Math.random() < 0.5) {
+        await screenHandler.showNewShip();
+      } else if (game.guns < 1000) {
+        await screenHandler.showNewGun();
+      }
+    }
 
     // Show port choices and wait for player action
     screenHandler.showPortChoices("What is your wish, Taipan?");
