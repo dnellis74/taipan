@@ -1,18 +1,7 @@
 import { GameState, GameEvent, EventResult } from '../types';
 import { Location, EventType } from '../types';
 
-export interface EventService {
-    checkRandomEvents(state: GameState): Promise<GameEvent>;
-    processMonthlyEvents(state: GameState): Promise<void>;
-    handleAutomaticEvent(state: GameState, event: GameEvent): Promise<EventResult>;
-    applyEventResult(state: GameState, event: GameEvent, result: EventResult): Promise<void>;
-    /**
-     * Updates the prices of all goods in the game state
-     */
-    updatePrices(state: GameState): Promise<void>;
-}
-
-export class SimpleEventService implements EventService {
+export class EventService {
     async checkRandomEvents(state: GameState): Promise<GameEvent> {
         // Only check for pirates if at sea
         if (state.location === Location.AT_SEA) {
@@ -116,12 +105,25 @@ export class SimpleEventService implements EventService {
     }
 
     async processMonthlyEvents(state: GameState): Promise<void> {
-        // Apply monthly interest
+        // Advance month
+        state.month++;
+        
+        // Handle year transition
+        if (state.month === 13) {
+            state.month = 1;
+            state.year++;
+            
+            // Increase enemy difficulty each year (like original)
+            state.enemyHealth += 10;
+            state.enemyDamage += 0.5;
+        }
+
+        // Apply monthly interest (10% on debt, 0.5% on bank like original)
         if (state.bank > 0) {
-            state.bank = Math.floor(state.bank * 1.01); // 1% monthly interest
+            state.bank = Math.floor(state.bank * 1.005); // 0.5% monthly interest
         }
         if (state.debt > 0) {
-            state.debt = Math.floor(state.debt * 1.02); // 2% monthly interest
+            state.debt = Math.floor(state.debt * 1.1); // 10% monthly interest
         }
     }
 
@@ -189,17 +191,5 @@ export class SimpleEventService implements EventService {
                 }
             }
         }
-    }
-
-    async updatePrices(state: GameState): Promise<void> {
-        // Update prices with some random variation
-        const variation = () => 0.8 + Math.random() * 0.4; // 80% to 120% of base price
-        
-        state.prices = {
-            general: Math.floor(100 * variation()),  // Base price 100
-            arms: Math.floor(200 * variation()),     // Base price 200
-            silk: Math.floor(300 * variation()),     // Base price 300
-            opium: Math.floor(400 * variation())     // Base price 400
-        };
     }
 } 
